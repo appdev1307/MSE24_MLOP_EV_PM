@@ -23,8 +23,7 @@ using your EV telemetry CSV.
    pip install -r requirements.txt
    ```
 
-   export EV_CSV=/Users/macintoshhd/Downloads/MSE24/2025_semester_03/MLOps/Final_thesis/ev_pm_mlops_package/src/data/EV_Predictive_Maintenance_Dataset_15min.csv
-
+   -- if venv exists, ""
 
 2. Prepare data and features
    ```bash
