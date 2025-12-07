@@ -1,0 +1,90 @@
+# src/rul.py
+# Train LightGBM RUL model using 'RUL' target and include the Maintenance_Type encoded (if available)
+# RUL trained on full dataset; RUL model will accept same numeric features + encoded fault label (if present)
+
+import os
+import joblib
+import pandas as pd
+import numpy as np
+from lightgbm import LGBMRegressor
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+
+BASE_CSV = "EV_Predictive_Maintenance_Dataset_15min.csv"
+PARQUET_IF = "data/features_with_anomaly.parquet"
+MODEL_DIR = "models/rul"
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+# Load data (prefer annotated)
+if os.path.exists(PARQUET_IF):
+    df = pd.read_parquet(PARQUET_IF)
+    print("Loaded annotated:", PARQUET_IF)
+else:
+    df = pd.read_csv(BASE_CSV)
+    print("Loaded CSV:", BASE_CSV)
+
+# Validate RUL target exists
+if "RUL" not in df.columns:
+    raise RuntimeError("Column 'RUL' not found in dataset. Cannot train RUL.")
+
+# Features (same numeric ones)
+FEATURES = [
+    "SoC", "SoH", "Battery_Voltage", "Battery_Current", "Battery_Temperature",
+    "Charge_Cycles", "Motor_Temperature", "Motor_Vibration", "Motor_Torque",
+    "Motor_RPM", "Power_Consumption", "Brake_Pad_Wear", "Brake_Pressure",
+    "Reg_Brake_Efficiency", "Tire_Pressure", "Tire_Temperature", "Suspension_Load",
+    "Ambient_Temperature", "Ambient_Humidity", "Load_Weight", "Driving_Speed",
+    "Distance_Traveled", "Idle_Time", "Route_Roughness", "Component_Health_Score",
+    "Failure_Probability", "TTF"
+]
+features = [c for c in FEATURES if c in df.columns]
+
+# Optionally include Maintenance_Type encoded as a numeric feature
+label_col_path = "models/classifier/label_col.joblib"
+label_encoder_path = "models/classifier/label_encoder.joblib"
+if os.path.exists(label_col_path):
+    label_col = joblib.load(label_col_path)
+else:
+    label_col = None
+
+if label_col and label_col in df.columns:
+    # ensure encoder exists or build one from training data if missing
+    if os.path.exists(label_encoder_path):
+        le = joblib.load(label_encoder_path)
+    else:
+        le = LabelEncoder()
+        df[label_col] = df[label_col].astype(str)
+        df[label_col] = le.fit_transform(df[label_col])
+        joblib.dump(le, label_encoder_path)
+    # add encoded label as feature
+    df[label_col] = le.transform(df[label_col].astype(str))
+    features.append(label_col)
+
+if not features:
+    raise RuntimeError("No features available for RUL training.")
+
+# Prepare data
+X = df[features].fillna(0.0).astype(float)
+y = df["RUL"].astype(float)
+
+# Train-test split (train on full with small holdout optional)
+# We'll do a quick random split for evaluation but fit on full for deployment to maximize data
+from sklearn.model_selection import train_test_split
+Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.15, random_state=42)
+
+model = LGBMRegressor(n_estimators=400, learning_rate=0.05, random_state=42)
+model.fit(Xtr, ytr)
+
+pred = model.predict(Xte)
+rmse = sqrt(mean_squared_error(yte, pred))
+print("RUL model RMSE (val):", rmse)
+
+# Re-fit on full dataset before saving (recommended)
+model.fit(X, y)
+
+# Save model + features
+joblib.dump(model, os.path.join(MODEL_DIR, "lgbm_rul.joblib"))
+joblib.dump(features, os.path.join(MODEL_DIR, "rul_features.joblib"))
+
+print("Saved RUL model & feature list to", MODEL_DIR)
