@@ -51,8 +51,23 @@ using your EV telemetry CSV.
    ```
 
 7. Test
-curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" \
- -d '{"payload": {"State_of_Charge": 80, "Battery_Temperature": 30, "Motor_Temperature": 60, "Ambient_Temperature": 25, "Odometer": 12000, "Speed": 60, "Current": 120, "Voltage": 350, "Health_Index": 85, "Vehicle_ID":"EV-1"}}'
+curl -X POST "http://localhost:8000/predict" \
+-H "Content-Type: application/json" \
+-d '{
+  "data": {
+    "State_of_Charge": 80,
+    "Battery_Temperature": 30,
+    "Motor_Temperature": 60,
+    "Ambient_Temperature": 25,
+    "Odometer": 12000,
+    "Speed": 60,
+    "Current": 120,
+    "Voltage": 350,
+    "Health_Index": 85,
+    "Vehicle_ID": "EV-1"
+  }
+}'
+
 
 
  curl -X POST "http://localhost:8000/predict" \
