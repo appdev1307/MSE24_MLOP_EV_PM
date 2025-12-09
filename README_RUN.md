@@ -107,3 +107,15 @@ docker compose down -v
 docker compose pull
 docker compose up --build -d
 
+
+docker compose ps
+
+
+MLflow → http://localhost:5000
+MinIO → http://localhost:9000 (console: 9001)
+Prometheus → http://localhost:9090
+Grafana → http://localhost:3000
+
+python src/create_minio_bucket.py
+
+python src/train_wrapper.py

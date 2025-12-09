@@ -5,13 +5,19 @@ import glob
 from mlflow.tracking import MlflowClient
 
 # mlflow setup
-MLFLOW_URI = os.environ.get('MLFLOW_TRACKING_URI', 'http://mlflow:5000')
+MLFLOW_URI = os.environ.get('MLFLOW_TRACKING_URI', 'http://localhost:5000')
 mlflow.set_tracking_uri(MLFLOW_URI)
 EXPERIMENT_NAME = os.environ.get('MLFLOW_EXPERIMENT', 'predictive-maintenance')
 mlflow.set_experiment(EXPERIMENT_NAME)
 
 # Scripts to run (comma separated)
-SCRIPTS = os.environ.get('TRAINING_SCRIPTS', 'classifier.py,rul.py,anomaly.py').split(',')
+#SCRIPTS = os.environ.get('TRAINING_SCRIPTS', 'classifier.py,rul.py,anomaly.py').split(',')
+SCRIPTS = [
+    "src/classifier.py",
+    "src/rul.py",
+    "src/anomaly.py"
+]
+
 # Default to project-level models folder
 DEFAULT_MODEL_GLOB = './models/*.joblib'
 MODEL_GLOBS = [g.strip() for g in os.environ.get('MODEL_GLOBS', DEFAULT_MODEL_GLOB).split(',') if g.strip()]
