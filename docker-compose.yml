@@ -67,6 +67,7 @@ services:
       - MODEL_GLOBS=./models/*.joblib
     volumes:
       - ./:/workspace
+    command: ["python", "src/train_wrapper.py"]  
 
   fastapi-inference:
     build:
@@ -86,6 +87,7 @@ services:
       - 8000:8000
     volumes:
       - ./:/workspace
+    command: ["uvicorn", "src.inference_server:app", "--host", "0.0.0.0", "--port", "8000"]
 
   prometheus:
     image: prom/prometheus:v2.48.0

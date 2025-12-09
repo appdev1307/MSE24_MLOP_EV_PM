@@ -116,6 +116,27 @@ MinIO → http://localhost:9000 (console: 9001)
 Prometheus → http://localhost:9090
 Grafana → http://localhost:3000
 
-python src/create_minio_bucket.py
+## docker
 
+## Create MinIO buckets and Kafka topics (local):
+```bash
+chmod +x scripts/setup_minio_kafka.sh
+./scripts/setup_minio_kafka.sh
+```
+## Trigger a training run (inside the trainer container):
+```bash
+# run the train_wrapper inside the trainer service
+docker compose run --rm trainer
+
+
+docker compose build fastapi-inference
+docker compose run --rm fastapi-inference
+
+
+## no docker
+python src/create_minio_bucket.py
+export AWS_ACCESS_KEY_ID=minioadmin
+export AWS_SECRET_ACCESS_KEY=minioadmin
+export AWS_DEFAULT_REGION=us-east-1
+export MLFLOW_S3_ENDPOINT_URL=http://localhost:9000
 python src/train_wrapper.py
