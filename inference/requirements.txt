@@ -7,3 +7,10 @@ boto3
 confluent-kafka
 prometheus_client
 joblib
+xgboost
+scikit-learn
+joblib
+numpy
+pandas
+lightgbm
+cloudpickle

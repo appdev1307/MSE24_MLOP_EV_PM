@@ -132,6 +132,40 @@ docker compose run --rm trainer
 docker compose build fastapi-inference
 docker compose run --rm fastapi-inference
 
+docker compose down -v
+docker compose up --build -d
+docker compose ps
+
+```
+
+curl http://localhost:8000/docs
+curl -X POST "http://localhost:8000/predict" \
+ -H "Content-Type: application/json" \
+ -d '{
+  "data": {
+    "SoC": 0.10,
+    "SoH": 0.50,
+    "Battery_Voltage": 200,
+    "Battery_Current": 350,
+    "Battery_Temperature": 95,
+    "Charge_Cycles": 2000,
+    "Motor_Temperature": 150,
+    "Motor_Vibration": 0.6,
+    "Power_Consumption": 50,
+    "Brake_Pressure": 10,
+    "Tire_Pressure": 10,
+    "Ambient_Temperature": 80,
+    "Ambient_Humidity": 0.95,
+    "Load_Weight": 3000,
+    "Driving_Speed": 200,
+    "Distance_Traveled": 700000,
+    "Idle_Time": 60,
+    "Route_Roughness": 0.9,
+    "Component_Health_Score": 0.1,
+    "Failure_Probability": 0.95,
+    "TTF": 50
+  }
+}'
 
 ## no docker
 python src/create_minio_bucket.py
