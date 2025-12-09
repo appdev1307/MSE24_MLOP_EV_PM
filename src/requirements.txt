@@ -1,0 +1,11 @@
+pandas
+numpy
+scikit-learn
+joblib
+xgboost
+mlflow
+boto3
+confluent-kafka
+prometheus_client
+pyyaml
+requests

@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+mlflow
+pandas
+numpy
+boto3
+confluent-kafka
+prometheus_client
+joblib

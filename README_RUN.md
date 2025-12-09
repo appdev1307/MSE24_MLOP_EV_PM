@@ -102,15 +102,8 @@ curl -X POST "http://localhost:8000/predict" \
 
 ## Docker
 
-1. Build image
-   ```bash
-   docker build -t ev-inference:local .
-   ```
+colima start
+docker compose down -v
+docker compose pull
+docker compose up --build -d
 
-2. Run container
-   ```bash
-   docker run --rm -p 8080:8080 \
-     -v $(pwd)/models:/app/models \
-     -v /path/to/EV_Predictive_Maintenance_Dataset_15min.csv:/app/data/EV_Predictive_MAINT.csv:ro \
-     ev-inference:local
-   ```
