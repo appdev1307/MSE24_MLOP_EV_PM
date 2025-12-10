@@ -7,6 +7,11 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import uvicorn
 
+from confluent_kafka import Producer
+import socket
+import json
+
+
 # Use paths relative to project root (run from repo root)
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) if __name__ == "__main__" else os.path.dirname(os.path.abspath(__file__))
 
@@ -24,6 +29,19 @@ CLF_NORMAL = os.path.join("models", "classifier", "normal_label.joblib")
 
 RUL_MODEL = os.path.join("models", "rul", "lgbm_rul.joblib")
 RUL_FEAT = os.path.join("models", "rul", "rul_features.joblib")
+
+KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+PRED_TOPIC = os.environ.get("PRED_TOPIC", "predictions")
+
+producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP})
+
+def kafka_send_prediction(payload: dict):
+    try:
+        producer.produce(PRED_TOPIC, json.dumps(payload).encode("utf-8"))
+        producer.poll(0)  # flush callback
+    except Exception as e:
+        print("Kafka produce error:", e)
+
 
 # safe loads
 def safe_load(path):
@@ -127,6 +145,21 @@ def predict(payload: Payload):
             result.update({"RUL_error": str(e)})
     else:
         result.update({"RUL_estimated": "not_applicable"})
+
+    payload_kafka = {
+        "timestamp": int(time.time()),
+        "host": socket.gethostname(),
+        "input": payload.data,
+        "prediction": {
+            "IF_Anomaly": int(pred_if),
+            "classifier_label": classifier_label,
+            "is_fault": bool(is_fault),
+            "RUL_estimated": float(rul_value)
+        }
+    }
+
+    kafka_send_prediction(payload_kafka)
+
 
     return result
 

@@ -89,6 +89,28 @@ services:
       - ./:/workspace
     command: ["uvicorn", "src.inference_server:app", "--host", "0.0.0.0", "--port", "8000"]
 
+    alert-service:
+      build:
+        context: ./alert_service
+        dockerfile: Dockerfile
+      environment:
+        - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+        - PRED_TOPIC=predictions
+        - PROM_PORT=9101
+      depends_on:
+        - kafka
+      ports:
+        - "9101:9101"
+
+    alertmanager:
+      image: prom/alertmanager:v0.27.1
+      command:
+        - '--config.file=/etc/alertmanager/config.yml'
+      volumes:
+        - ./monitoring/alertmanager.yml:/etc/alertmanager/config.yml:ro
+      ports:
+        - "9093:9093"
+
   prometheus:
     image: prom/prometheus:v2.48.0
     volumes:
