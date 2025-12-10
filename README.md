@@ -18,7 +18,9 @@ project/
 1. Make sure Docker and Docker Compose are installed.
 2. From the project root, run:
    ```bash
-   docker-compose up --build -d
+   docker compose down -v
+   docker compose up --build -d
+
    ```
 3. Create MinIO buckets and Kafka topics (local):
    ```bash

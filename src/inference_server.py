@@ -1,83 +1,102 @@
-# src/inference_server.py
-# FastAPI server implementing: IsolationForest -> Classifier -> RUL (if fault)
 import os
+import time
+import socket
 import joblib
 import numpy as np
 from fastapi import FastAPI
 from pydantic import BaseModel
-import uvicorn
-
+from typing import Dict, Any, List
 from confluent_kafka import Producer
-import socket
-import json
 
+# ============================================================
+# ----------------------- LOAD MODELS -------------------------
+# ============================================================
 
-# Use paths relative to project root (run from repo root)
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) if __name__ == "__main__" else os.path.dirname(os.path.abspath(__file__))
-
-# Model artifact paths
-IF_MODEL = os.path.join("models", "anomaly", "isolation_forest.joblib")
-IF_SCALER = os.path.join("models", "anomaly", "scaler.joblib")
-IF_FEAT = os.path.join("models", "anomaly", "isofeat.joblib")
-
-CLF_MODEL = os.path.join("models", "classifier", "classifier.joblib")
-CLF_SCALER = os.path.join("models", "classifier", "scaler.joblib")
-CLF_FEAT = os.path.join("models", "classifier", "features.joblib")
-CLF_LABEL = os.path.join("models", "classifier", "label_col.joblib")
-CLF_LABEL_ENCODER = os.path.join("models", "classifier", "label_encoder.joblib")
-CLF_NORMAL = os.path.join("models", "classifier", "normal_label.joblib")
-
-RUL_MODEL = os.path.join("models", "rul", "lgbm_rul.joblib")
-RUL_FEAT = os.path.join("models", "rul", "rul_features.joblib")
-
-KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-PRED_TOPIC = os.environ.get("PRED_TOPIC", "predictions")
-
-producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP})
-
-def kafka_send_prediction(payload: dict):
-    try:
-        producer.produce(PRED_TOPIC, json.dumps(payload).encode("utf-8"))
-        producer.poll(0)  # flush callback
-    except Exception as e:
-        print("Kafka produce error:", e)
-
-
-# safe loads
-def safe_load(path):
+def load_or_none(path):
     return joblib.load(path) if os.path.exists(path) else None
 
-isof = safe_load(IF_MODEL)
-if_scaler = safe_load(IF_SCALER)
-if_features = safe_load(IF_FEAT)
+MODEL_DIR = "models"
 
-clf = safe_load(CLF_MODEL)
-clf_scaler = safe_load(CLF_SCALER)
-clf_features = safe_load(CLF_FEAT)
-clf_label_col = safe_load(CLF_LABEL)
-clf_label_encoder = safe_load(CLF_LABEL_ENCODER)
-clf_normal_label = safe_load(CLF_NORMAL)
+# ---- Anomaly (Isolation Forest) ----
+isof = load_or_none(f"{MODEL_DIR}/anomaly/isolation_forest.joblib")
+if_scaler = load_or_none(f"{MODEL_DIR}/anomaly/scaler.joblib")
+if_features = load_or_none(f"{MODEL_DIR}/anomaly/isofeat.joblib")
 
-rul_model = safe_load(RUL_MODEL)
-rul_features = safe_load(RUL_FEAT)
+# ---- Classifier ----
+clf_model = load_or_none(f"{MODEL_DIR}/classifier/classifier.joblib")
+clf_scaler = load_or_none(f"{MODEL_DIR}/classifier/scaler.joblib")
+clf_features = load_or_none(f"{MODEL_DIR}/classifier/features.joblib")
+clf_label_encoder = load_or_none(f"{MODEL_DIR}/classifier/label_encoder.joblib")
 
-app = FastAPI(title="EV Predictive Maintenance Inference")
+# ---- RUL Predictor ----
+rul_model = load_or_none(f"{MODEL_DIR}/rul/lgbm_rul.joblib")
+rul_features = load_or_none(f"{MODEL_DIR}/rul/rul_features.joblib")
 
-# Input schema: accept flexible dict of features (we'll pick the ones needed)
+# ---- Meaningful labels mapping ----
+FAULT_MAP = {
+    0: "Battery Aging",
+    1: "Thermal Runaway Risk",
+    2: "Motor Overheat",
+    3: "Brake System Failure",
+    4: "Sensor Drift"
+}
+
+# ============================================================
+# ---------------------- KAFKA CONFIG -------------------------
+# ============================================================
+
+KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+KAFKA_TOPIC = "ev_predictions"
+
+kafka_producer = None
+kafka_enabled = True
+try:
+    kafka_producer = Producer({"bootstrap.servers": KAFKA_SERVER})
+except Exception as e:
+    kafka_producer = None
+    kafka_enabled = False
+    print(f"[WARN] Kafka producer init failed, disabled: {e}")
+
+# ============================================================
+# ---------------------- FASTAPI APP --------------------------
+# ============================================================
+
+app = FastAPI(title="EV Predictive Maintenance Inference API")
+
 class Payload(BaseModel):
-    data: dict  # keys are column names and values are numeric (or Vehicle identifier)
+    data: Dict[str, Any]
 
-def _build_row(feature_list, data):
-    # returns np.array shaped (1, n)
-    return np.array([float(data.get(f, 0.0)) for f in feature_list]).reshape(1, -1)
+# ============================================================
+# ------------------- HELPERS --------------------------------
+# ============================================================
+
+def _build_row(feature_list: List[str], input_data: Dict[str, Any]):
+    return np.array([[float(input_data.get(f, 0)) for f in feature_list]])
+
+def kafka_send_prediction(data: Dict[str, Any]):
+    if not kafka_enabled or kafka_producer is None:
+        print("[WARN] Kafka disabled or not reachable; skipping send.")
+        return
+    try:
+        kafka_producer.produce(KAFKA_TOPIC, value=str(data))
+    except Exception as e:
+        print(f"[WARN] Kafka send failed (non-blocking): {e}")
+
+# ============================================================
+# ------------------------- ENDPOINT --------------------------
+# ============================================================
 
 @app.post("/predict")
 def predict(payload: Payload):
-    data = payload.data
 
-    # 1) Anomaly detection (must exist)
+    data = payload.data
+    result = {}
+
+    # ========================================================
+    # 1) Anomaly Detection
+    # ========================================================
     if isof is None or if_scaler is None or if_features is None:
-        return {"error": "Anomaly model/scaler/features missing. Run src/anomaly.py first."}
+        return {"error": "Anomaly model/scaler/features missing. Run anomaly pipeline first."}
 
     try:
         x_if = _build_row(if_features, data)
@@ -87,82 +106,75 @@ def predict(payload: Payload):
     except Exception as e:
         return {"error": f"Anomaly inference error: {e}"}
 
-    result = {"IF_Anomaly": is_anomaly}
+    result["IF_Anomaly"] = is_anomaly
 
-    # If no anomaly -> return normal
+    # ========================================================
+    # ** RULE OVERRIDE: Battery Aging (SoH < 0.6 or cycles > 2000) **
+    # ========================================================
     if is_anomaly == 0:
-        result.update({"status": "Normal - no fault detected"})
-        return result
+        soh = float(data.get("SoH", 1))
+        cycles = float(data.get("Charge_Cycles", 0))
 
-    # 2) Classifier (must exist)
-    if clf is None or clf_scaler is None or clf_features is None:
-        # classifier missing -> return anomaly only
-        result.update({"classifier": "not available"})
-        return result
-
-    try:
-        x_clf = _build_row(clf_features, data)
-        x_clf_scaled = clf_scaler.transform(x_clf)
-        clf_pred = clf.predict(x_clf_scaled)[0]
-        # decode label if encoder exists
-        if clf_label_encoder:
-            label_name = clf_label_encoder.inverse_transform([int(clf_pred)])[0]
+        if soh < 0.6 or cycles > 2000:
+            is_anomaly = 1
+            result["IF_Anomaly"] = 1
         else:
-            label_name = str(clf_pred)
-    except Exception as e:
-        return {"error": f"Classifier inference error: {e}"}
+            result["status"] = "Normal - no fault detected"
+            return result
 
-    result.update({"classifier_label_code": int(clf_pred), "classifier_label_name": label_name})
+    # ========================================================
+    # 2) Fault Classification
+    # ========================================================
+    classifier_label = None
+    is_fault = False
 
-    # decide if this class indicates a fault (anything not equal to the normal_label)
-    try:
-        normal_code = int(clf_normal_label) if clf_normal_label is not None else None
-    except:
-        normal_code = None
-
-    is_fault = True
-    if normal_code is not None:
-        is_fault = (int(clf_pred) != normal_code)
-    else:
-        # if we don't know normal code, treat any non-zero numeric as fault
+    if clf_model and clf_scaler and clf_features:
         try:
-            is_fault = int(clf_pred) != 0
-        except:
+            x_clf = _build_row(clf_features, data)
+            x_clf_scaled = clf_scaler.transform(x_clf)
+            pred_code = clf_model.predict(x_clf_scaled)[0]
+
+            # convert to meaningful name
+            classifier_label = FAULT_MAP.get(int(pred_code), str(pred_code))
             is_fault = True
 
-    result["is_fault"] = bool(is_fault)
+        except Exception as e:
+            classifier_label = f"Classifier Error: {e}"
+    else:
+        classifier_label = "Classifier unavailable"
 
-    # 3) If fault -> RUL (if available)
-    if is_fault:
-        if rul_model is None or rul_features is None:
-            result.update({"RUL": "not available"})
-            return result
+    result["classifier_label"] = classifier_label
+    result["is_fault"] = is_fault
+
+    # ========================================================
+    # 3) RUL Prediction
+    # ========================================================
+    rul_value = None
+    if is_fault and rul_model and rul_features:
         try:
             x_rul = _build_row(rul_features, data)
-            rul_pred = float(rul_model.predict(x_rul)[0])
-            result.update({"RUL_estimated": float(rul_pred)})
-        except Exception as e:
-            result.update({"RUL_error": str(e)})
-    else:
-        result.update({"RUL_estimated": "not_applicable"})
+            rul_value = float(rul_model.predict(x_rul)[0])
+        except Exception:
+            rul_value = None
 
-    payload_kafka = {
+    result["RUL_estimated"] = rul_value
+
+    # ========================================================
+    # 4) Kafka Event - Only push alerts
+    # ========================================================
+    alert_payload = {
         "timestamp": int(time.time()),
         "host": socket.gethostname(),
         "input": payload.data,
         "prediction": {
-            "IF_Anomaly": int(pred_if),
+            "IF_Anomaly": is_anomaly,
             "classifier_label": classifier_label,
             "is_fault": bool(is_fault),
-            "RUL_estimated": float(rul_value)
+            "RUL_estimated": float(rul_value) if (rul_value is not None) else None
         }
     }
 
-    kafka_send_prediction(payload_kafka)
-
+    if is_anomaly == 1 or is_fault:
+        kafka_send_prediction(alert_payload)
 
     return result
-
-if __name__ == "__main__":
-    print("Loaded models? IF:", bool(isof), "CLF:", bool(clf), "RUL:", bool(rul_model))
-    uvicorn.run("src.inference_server:app", host="0.0.0.0", port=8000, reload=False)

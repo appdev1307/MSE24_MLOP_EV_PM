@@ -3,16 +3,6 @@
 This package contains a runnable local MLOps prototype for Predictive Maintenance
 using your EV telemetry CSV.
 
-## Structure
-- `src/` : training and inference scripts
-- `data/features/` : features will be created here by preprocessing step
-- `models/` : trained model artifacts will be saved here
-
-## Prerequisites
-- Linux / macOS (or WSL on Windows)
-- Python 3.10+
-- Docker (optional)
-
 ## Local run
 
 1. Create virtualenv and install dependencies
@@ -167,7 +157,7 @@ curl -X POST "http://localhost:8000/predict" \
   }
 }'
 
-## no docker
+## no docker (fix)
 python src/create_minio_bucket.py
 export AWS_ACCESS_KEY_ID=minioadmin
 export AWS_SECRET_ACCESS_KEY=minioadmin
