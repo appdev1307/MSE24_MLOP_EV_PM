@@ -1,20 +1,57 @@
 groups:
-  - name: anomaly.rules
-    rules:
-      - alert: HighAnomalyRate
-        expr: increase(anomaly_events_total[5m]) > 5
-        for: 2m
-        labels:
-          severity: critical
-        annotations:
-          summary: "High anomaly rate detected"
-          description: "More than 5 anomalies in last 5 minutes."
+- name: ev-ml-inference-alerts
+  rules:
 
-      - alert: LowRUL
-        expr: min_over_time(rul_estimated[10m]) < 50
-        for: 1m
-        labels:
-          severity: warning
-        annotations:
-          summary: "RUL < 50 detected"
-          description: "Remaining Useful Life is dangerously low."
+  # ==========================================================
+  # 1. Inference API Down (CRITICAL)
+  # ==========================================================
+  - alert: FastAPIInferenceDown
+    expr: up{job="fastapi"} == 0
+    for: 30s
+    labels:
+      severity: critical
+    annotations:
+      summary: "FastAPI inference service is down"
+      description: "Prometheus cannot scrape fastapi-inference for 30s."
+
+  # ==========================================================
+  # 2. High Inference Latency (WARNING)
+  # ==========================================================
+  - alert: HighInferenceLatency
+    expr: |
+      histogram_quantile(
+        0.95,
+        sum(rate(inference_request_latency_seconds_bucket[2m])) by (le)
+      ) > 1.0
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High inference latency (p95 > 1s)"
+      description: "95th percentile inference latency exceeded 1 second."
+
+  # ==========================================================
+  # 3. High Anomaly Rate (CRITICAL – SAFETY)
+  # ==========================================================
+  - alert: HighAnomalyRate
+    expr: |
+      rate(anomaly_predictions_total[2m]) > 0.2
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "High anomaly prediction rate"
+      description: "Anomaly rate > 0.2/sec over last 2 minutes."
+
+  # ==========================================================
+  # 4. No Traffic (INFO)
+  # ==========================================================
+  - alert: NoInferenceTraffic
+    expr: |
+      rate(inference_requests_total[5m]) == 0
+    for: 5m
+    labels:
+      severity: info
+    annotations:
+      summary: "No inference traffic"
+      description: "No inference requests received in last 5 minutes."

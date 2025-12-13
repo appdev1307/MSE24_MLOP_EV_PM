@@ -3,10 +3,21 @@ import time
 import socket
 import joblib
 import numpy as np
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Dict, Any, List
 from confluent_kafka import Producer
+
+# =======================
+# MONITORING (ADDED ONLY)
+# =======================
+from prometheus_client import (
+    Counter,
+    Histogram,
+    generate_latest,
+    CONTENT_TYPE_LATEST
+)
 
 # ============================================================
 # ----------------------- LOAD MODELS -------------------------
@@ -63,6 +74,41 @@ except Exception as e:
 
 app = FastAPI(title="EV Predictive Maintenance Inference API")
 
+# =======================
+# MONITORING METRICS
+# =======================
+
+REQUEST_COUNT = Counter(
+    "inference_requests_total",
+    "Total number of inference requests"
+)
+
+REQUEST_LATENCY = Histogram(
+    "inference_request_latency_seconds",
+    "Inference request latency in seconds"
+)
+
+ANOMALY_PREDICTIONS = Counter(
+    "anomaly_predictions_total",
+    "Total anomaly predictions"
+)
+
+@app.middleware("http")
+async def prometheus_middleware(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    REQUEST_COUNT.inc()
+    REQUEST_LATENCY.observe(time.time() - start_time)
+    return response
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+# ============================================================
+# ---------------------- SCHEMA -------------------------------
+# ============================================================
+
 class Payload(BaseModel):
     data: Dict[str, Any]
 
@@ -108,8 +154,14 @@ def predict(payload: Payload):
 
     result["IF_Anomaly"] = is_anomaly
 
+    # =======================
+    # MONITORING HOOK (ONLY)
+    # =======================
+    if is_anomaly == 1:
+        ANOMALY_PREDICTIONS.inc()
+
     # ========================================================
-    # ** RULE OVERRIDE: Battery Aging (SoH < 0.6 or cycles > 2000) **
+    # RULE OVERRIDE: Battery Aging
     # ========================================================
     if is_anomaly == 0:
         soh = float(data.get("SoH", 1))
@@ -118,6 +170,7 @@ def predict(payload: Payload):
         if soh < 0.6 or cycles > 2000:
             is_anomaly = 1
             result["IF_Anomaly"] = 1
+            ANOMALY_PREDICTIONS.inc()
         else:
             result["status"] = "Normal - no fault detected"
             return result
@@ -133,11 +186,8 @@ def predict(payload: Payload):
             x_clf = _build_row(clf_features, data)
             x_clf_scaled = clf_scaler.transform(x_clf)
             pred_code = clf_model.predict(x_clf_scaled)[0]
-
-            # convert to meaningful name
             classifier_label = FAULT_MAP.get(int(pred_code), str(pred_code))
             is_fault = True
-
         except Exception as e:
             classifier_label = f"Classifier Error: {e}"
     else:
@@ -170,7 +220,7 @@ def predict(payload: Payload):
             "IF_Anomaly": is_anomaly,
             "classifier_label": classifier_label,
             "is_fault": bool(is_fault),
-            "RUL_estimated": float(rul_value) if (rul_value is not None) else None
+            "RUL_estimated": float(rul_value) if rul_value is not None else None
         }
     }
 

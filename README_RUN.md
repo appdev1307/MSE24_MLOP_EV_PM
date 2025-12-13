@@ -128,6 +128,9 @@ docker compose ps
 
 ```
 
+pip install requests
+
+
 curl http://localhost:8000/docs
 curl -X POST "http://localhost:8000/predict" \
  -H "Content-Type: application/json" \
