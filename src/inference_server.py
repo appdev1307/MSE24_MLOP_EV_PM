@@ -10,7 +10,7 @@ from typing import Dict, Any, List
 from confluent_kafka import Producer
 
 # =======================
-# MONITORING (ADDED ONLY)
+# MONITORING
 # =======================
 from prometheus_client import (
     Counter,
@@ -139,7 +139,7 @@ def predict(payload: Payload):
     result = {}
 
     # ========================================================
-    # 1) Anomaly Detection
+    # 1) Anomaly Detection (Isolation Forest)
     # ========================================================
     if isof is None or if_scaler is None or if_features is None:
         return {"error": "Anomaly model/scaler/features missing. Run anomaly pipeline first."}
@@ -154,12 +154,6 @@ def predict(payload: Payload):
 
     result["IF_Anomaly"] = is_anomaly
 
-    # =======================
-    # MONITORING HOOK (ONLY)
-    # =======================
-    if is_anomaly == 1:
-        ANOMALY_PREDICTIONS.inc()
-
     # ========================================================
     # RULE OVERRIDE: Battery Aging
     # ========================================================
@@ -170,7 +164,6 @@ def predict(payload: Payload):
         if soh < 0.6 or cycles > 2000:
             is_anomaly = 1
             result["IF_Anomaly"] = 1
-            ANOMALY_PREDICTIONS.inc()
         else:
             result["status"] = "Normal - no fault detected"
             return result
@@ -208,6 +201,12 @@ def predict(payload: Payload):
             rul_value = None
 
     result["RUL_estimated"] = rul_value
+
+    # ========================================================
+    # FINAL MONITORING HOOK (ONLY PLACE)
+    # ========================================================
+    if result.get("IF_Anomaly") == 1:
+        ANOMALY_PREDICTIONS.inc()
 
     # ========================================================
     # 4) Kafka Event - Only push alerts
