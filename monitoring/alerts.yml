@@ -38,7 +38,7 @@ groups:
   - alert: HighAnomalyRate
     expr: |
       increase(anomaly_predictions_total[2m]) >= 5
-    for: 1m
+    for: 15s
     labels:
       severity: critical
     annotations:
