@@ -12,7 +12,7 @@ groups:
       severity: critical
     annotations:
       summary: "FastAPI inference service is down"
-      description: "Prometheus cannot scrape fastapi-inference for 30s."
+      description: "Prometheus cannot scrape fastapi-inference for 30 seconds."
 
   # ==========================================================
   # 2. High Inference Latency (WARNING)
@@ -21,37 +21,39 @@ groups:
     expr: |
       histogram_quantile(
         0.95,
-        sum(rate(inference_request_latency_seconds_bucket[2m])) by (le)
-      ) > 1.0
-    for: 1m
+        sum by (le) (
+          rate(inference_request_latency_seconds_bucket{job="fastapi"}[3m])
+        )
+      ) > 0.5
+    for: 2m
     labels:
       severity: warning
     annotations:
-      summary: "High inference latency (p95 > 1s)"
-      description: "95th percentile inference latency exceeded 1 second."
+      summary: "High inference latency (p95 > 500ms)"
+      description: "95th percentile inference latency exceeded 500ms for 2 minutes."
 
   # ==========================================================
   # 3. High Anomaly Rate (CRITICAL – SAFETY)
   # ==========================================================
   - alert: HighAnomalyRate
     expr: |
-      rate(anomaly_predictions_total[2m]) > 0.2
+      increase(anomaly_predictions_total[2m]) >= 5
     for: 1m
     labels:
       severity: critical
     annotations:
-      summary: "High anomaly prediction rate"
-      description: "Anomaly rate > 0.2/sec over last 2 minutes."
+      summary: "High anomaly prediction volume"
+      description: "5 or more anomaly predictions in the last 2 minutes."
 
   # ==========================================================
   # 4. No Traffic (INFO)
   # ==========================================================
   - alert: NoInferenceTraffic
     expr: |
-      rate(inference_requests_total[5m]) == 0
+      increase(inference_requests_total[5m]) == 0
     for: 5m
     labels:
       severity: info
     annotations:
       summary: "No inference traffic"
-      description: "No inference requests received in last 5 minutes."
+      description: "No inference requests received in the last 5 minutes."
