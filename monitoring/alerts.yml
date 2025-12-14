@@ -3,7 +3,7 @@ groups:
   rules:
 
   # ==========================================================
-  # 1. Inference API Down (CRITICAL)
+  # 1. FastAPI DOWN
   # ==========================================================
   - alert: FastAPIInferenceDown
     expr: up{job="fastapi"} == 0
@@ -11,29 +11,29 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: "FastAPI inference service is down"
-      description: "Prometheus cannot scrape fastapi-inference for 30 seconds."
+      summary: FastAPI inference service is down
+      description: Prometheus cannot scrape fastapi-inference for 30 seconds.
 
   # ==========================================================
-  # 2. High Inference Latency (WARNING)
+  # 2. High Inference Latency (p95)
   # ==========================================================
   - alert: HighInferenceLatency
     expr: |
       histogram_quantile(
         0.95,
         sum by (le) (
-          rate(inference_request_latency_seconds_bucket{job="fastapi"}[3m])
+          rate(inference_request_latency_seconds_bucket[2m])
         )
       ) > 0.5
-    for: 2m
+    for: 60s
     labels:
       severity: warning
     annotations:
-      summary: "High inference latency (p95 > 500ms)"
-      description: "95th percentile inference latency exceeded 500ms for 2 minutes."
+      summary: High inference latency
+      description: p95 latency > 500ms for 1 minute.
 
   # ==========================================================
-  # 3. High Anomaly Rate (CRITICAL – SAFETY)
+  # 3. High Anomaly Volume
   # ==========================================================
   - alert: HighAnomalyRate
     expr: |
@@ -42,11 +42,11 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: "High anomaly prediction volume"
-      description: "5 or more anomaly predictions in the last 2 minutes."
+      summary: High anomaly prediction volume
+      description: 5 or more anomaly predictions in last 2 minutes.
 
   # ==========================================================
-  # 4. No Traffic (INFO)
+  # 4. No Inference Traffic
   # ==========================================================
   - alert: NoInferenceTraffic
     expr: |
@@ -55,5 +55,5 @@ groups:
     labels:
       severity: info
     annotations:
-      summary: "No inference traffic"
-      description: "No inference requests received in the last 5 minutes."
+      summary: No inference traffic
+      description: No inference requests received in last 5 minutes.

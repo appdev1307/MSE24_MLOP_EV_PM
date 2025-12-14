@@ -1,24 +1,39 @@
 global:
-  scrape_interval: 15s
+  scrape_interval: 10s
+  evaluation_interval: 10s
+  scrape_timeout: 5s
 
 scrape_configs:
-  - job_name: 'fastapi'
+  # ==================================================
+  # FastAPI Inference
+  # ==================================================
+  - job_name: fastapi
     metrics_path: /metrics
     static_configs:
-      - targets: ['fastapi-inference:8000']
+      - targets:
+          - fastapi-inference:8000
 
-  - job_name: 'mlflow'
+  # ==================================================
+  # Alert Service (custom metrics)
+  # ==================================================
+  - job_name: alert-service
     static_configs:
-      - targets: ['mlflow:5000']
+      - targets:
+          - alert-service:9101
 
-  - job_name: 'alert-service'
+  # ==================================================
+  # MLflow (optional – only if /metrics exposed)
+  # ==================================================
+  - job_name: mlflow
     static_configs:
-      - targets: ['alert-service:9101']
+      - targets:
+          - mlflow:5000
 
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: ['alertmanager:9093']
+        - targets:
+            - alertmanager:9093
 
 rule_files:
-  - "/etc/prometheus/alerts.yml"
+  - /etc/prometheus/alerts.yml
