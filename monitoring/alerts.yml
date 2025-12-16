@@ -2,11 +2,8 @@ groups:
 - name: ev-ml-inference-alerts
   rules:
 
-  # ==========================================================
-  # 1. FastAPI DOWN
-  # ==========================================================
   - alert: FastAPIInferenceDown
-    expr: up{job="fastapi"} == 0
+    expr: up{job="fastapi-inference"} == 0
     for: 30s
     labels:
       severity: critical
@@ -14,9 +11,6 @@ groups:
       summary: FastAPI inference service is down
       description: Prometheus cannot scrape fastapi-inference for 30 seconds.
 
-  # ==========================================================
-  # 2. High Inference Latency (p95)
-  # ==========================================================
   - alert: HighInferenceLatency
     expr: |
       histogram_quantile(
@@ -32,12 +26,8 @@ groups:
       summary: High inference latency
       description: p95 latency > 500ms for 1 minute.
 
-  # ==========================================================
-  # 3. High Anomaly Volume
-  # ==========================================================
   - alert: HighAnomalyRate
-    expr: |
-      increase(anomaly_predictions_total[2m]) >= 5
+    expr: increase(anomaly_predictions_total[2m]) >= 5
     for: 15s
     labels:
       severity: critical
@@ -45,12 +35,8 @@ groups:
       summary: High anomaly prediction volume
       description: 5 or more anomaly predictions in last 2 minutes.
 
-  # ==========================================================
-  # 4. No Inference Traffic
-  # ==========================================================
   - alert: NoInferenceTraffic
-    expr: |
-      increase(inference_requests_total[5m]) == 0
+    expr: increase(inference_requests_total[5m]) == 0
     for: 5m
     labels:
       severity: info

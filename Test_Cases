@@ -1,1 +1,13 @@
 python test_inference_api.py
+
+
+
+# 1. Replace alerts.yml with the above
+# 2. Restart Prometheus ONLY
+docker restart prometheus
+
+# 3. Verify rules loaded
+curl http://localhost:9090/api/v1/rules | jq
+
+
+python test_alerts.py
