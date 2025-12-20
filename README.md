@@ -63,20 +63,11 @@ project/
 colima start
 docker compose down -v
 docker compose pull
-docker compose up --build -d
+docker compose up trainer
 docker compose ps
 ```
 
-### 3. Access services
-
-- **MLflow** → [http://localhost:5000](http://localhost:5000)
-- **MinIO Console** → [http://localhost:9001](http://localhost:9001)  
-  - User: `minioadmin`  
-  - Password: `minioadmin`
-- **Prometheus** → [http://localhost:9090](http://localhost:9090)
-- **Grafana** → [http://localhost:3000](http://localhost:3000)
-
-### 4. Create MinIO bucket (required for MLflow)
+### 3. Create MinIO bucket (required for MLflow)
 
 ```bash
 docker exec -it minio mc alias set local http://localhost:9000 minioadmin minioadmin
@@ -90,6 +81,20 @@ Or use the helper script:
 chmod +x scripts/setup_minio_kafka.sh
 ./scripts/setup_minio_kafka.sh
 ```
+
+### 4. Run docker to train the models
+```bash
+docker compose build --no-cache trainer
+docker compose up trainer
+```
+
+### 5. Access services
+- **MLflow** → [http://localhost:5000](http://localhost:5000)
+- **MinIO Console** → [http://localhost:9001](http://localhost:9001)  
+  - User: `minioadmin`  
+  - Password: `minioadmin`
+- **Prometheus** → [http://localhost:9090](http://localhost:9090)
+- **Grafana** → [http://localhost:3000](http://localhost:3000)
 
 ---
 
@@ -117,6 +122,14 @@ curl -X POST "http://localhost:8000/predict" \
       "Distance_Traveled": 700000
     }
   }'
+```
+
+```bash
+python test_inference_api.py
+```
+
+```bash
+python test_alerts.py
 ```
 
 ---

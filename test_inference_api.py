@@ -1,30 +1,62 @@
 import requests
 import json
+import os
 
-API_URL = "http://localhost:8000/predict"
+API_URL = os.getenv("API_URL", "http://localhost:8000/predict")
+TIMEOUT = 10
 
 
-def run_test_case(name, data):
-    print(f"\n--- {name} ---")
-
-    response = requests.post(
-        API_URL,
-        headers={"Content-Type": "application/json"},
-        json={"data": data}   # ✅ CORRECT KEY
-    )
+def run_test_case(name, data, expect_fault: bool):
+    print(f"\n==================== {name} ====================")
 
     try:
-        print(json.dumps(response.json(), indent=2))
-    except Exception:
+        response = requests.post(
+            API_URL,
+            headers={"Content-Type": "application/json"},
+            json={"data": data},
+            timeout=TIMEOUT
+        )
+    except requests.exceptions.RequestException as e:
+        print("❌ Request failed:", e)
+        return
+
+    print("HTTP Status:", response.status_code)
+
+    if response.status_code != 200:
+        print("❌ API Error")
         print(response.text)
+        return
+
+    try:
+        result = response.json()
+        print(json.dumps(result, indent=2))
+    except Exception:
+        print("❌ Invalid JSON response")
+        print(response.text)
+        return
+
+    # ===================== BASIC ASSERTIONS =====================
+    assert "IF_Anomaly" in result, "Missing IF_Anomaly"
+    assert "status" in result, "Missing status"
+
+    if expect_fault:
+        assert result["IF_Anomaly"] == 1, "Expected anomaly but got normal"
+        assert result.get("is_fault", True), "Expected fault flag"
+    else:
+        assert result["IF_Anomaly"] == 0, "Expected normal but got anomaly"
+
+    print("✅ Test passed")
 
 
-# ===================== TEST CASES =====================
+# ===============================================================
+# TEST CASES
+# ===============================================================
 
 # 1️⃣ NORMAL OPERATION
 run_test_case(
-    "NORMAL CASE",
-    {
+    name="NORMAL CASE",
+    expect_fault=False,
+    data={
         "SoC": 0.8,
         "SoH": 0.95,
         "Battery_Voltage": 420,
@@ -51,8 +83,9 @@ run_test_case(
 
 # 2️⃣ THERMAL RUNAWAY RISK
 run_test_case(
-    "THERMAL RUNAWAY RISK",
-    {
+    name="THERMAL RUNAWAY RISK",
+    expect_fault=True,
+    data={
         "SoC": 0.2,
         "SoH": 0.7,
         "Battery_Voltage": 200,
@@ -79,8 +112,9 @@ run_test_case(
 
 # 3️⃣ MOTOR OVERHEAT
 run_test_case(
-    "MOTOR OVERHEAT",
-    {
+    name="MOTOR OVERHEAT",
+    expect_fault=True,
+    data={
         "SoC": 0.6,
         "SoH": 0.85,
         "Battery_Voltage": 380,
@@ -107,8 +141,9 @@ run_test_case(
 
 # 4️⃣ BATTERY AGING
 run_test_case(
-    "BATTERY AGING",
-    {
+    name="BATTERY AGING",
+    expect_fault=True,
+    data={
         "SoC": 0.1,
         "SoH": 0.5,
         "Battery_Voltage": 200,
@@ -135,8 +170,9 @@ run_test_case(
 
 # 5️⃣ MULTI-FAULT CRITICAL
 run_test_case(
-    "MULTI-FAULT CRITICAL",
-    {
+    name="MULTI-FAULT CRITICAL",
+    expect_fault=True,
+    data={
         "SoC": 0.05,
         "SoH": 0.3,
         "Battery_Voltage": 180,
