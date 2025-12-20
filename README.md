@@ -135,11 +135,36 @@ python test_alerts.py
 
 ---
 
-## ✅ Key Design Highlights
+## ✅ Key Design Highlights (Level-2 MLOps maturity)
 
-- MLflow Model Registry with Staging and Production stages
-- FastAPI loads models directly via `models:/<name>/Production`
-- Kafka-based alerting system
-- Prometheus metrics collection + Grafana dashboards for monitoring
-- MinIO as S3-compatible artifact storage for MLflow
+✔ Dockerized training & inference
+✔ FastAPI inference service
+✔ MLflow tracking + artifacts
+✔ Kafka event streaming
+✔ Prometheus + Grafana monitoring
+✔ Alertmanager
+✔ Synthetic test cases
+✔ Offline training pipeline
+✔ Feature-rich EV dataset
+
+
+## Limitation
+- Model Registry Lifecycle Control (CRITICAL): Train → Register → Validate → Promote → Serve → Rollback
+- Inference Model Version Pinning
+  classifier: Production v3
+  rul: Production v2
+  anomaly: Production v5
+- Data & Prediction Drift Detection
+  Feature drift
+  Prediction drift
+  Label drift (offline)
+- Ground Truth Feedback Loop: Prediction → Real failure → Label → Retraining
+- Automated Retraining Trigger: Drift → Kafka event → Training job → Validation → Registry
+- Pre-deployment Model Validation (Gatekeeper)
+- Explainability (XAI)
+- Security & Access Control
+- CI/CD for ML (Not Just Docker): Git push → Train → Validate → Register → Deploy
+- Reproducibility & Lineage
+
+
 ```
