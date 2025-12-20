@@ -2,3 +2,4 @@ models/
 venv/
 data/
 mlflow/
+mlflow/mlflow.db
