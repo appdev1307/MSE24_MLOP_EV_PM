@@ -1,15 +1,16 @@
 # Predictive Maintenance MLOps - Example Project
 
+This package contains a runnable local MLOps prototype for Predictive Maintenance
+using your EV telemetry CSV.
+
 ## Project layout
 
 ```
 project/
-├── data/             # raw and processed datasets
 ├── models/           # model artifacts written by your training scripts (.joblib)
 ├── src/              # training scripts ()
-├── inference/        # inference server + related files
 ├── monitoring/       # prometheus config
-├── scripts/          # helper scripts: setup MinIO/Kafka, event -> GitLab
+├── alert_service/    # Alert services
 └── docker-compose.yml
 ```
 
@@ -18,32 +19,31 @@ project/
 1. Make sure Docker and Docker Compose are installed.
 2. From the project root, run:
    ```bash
-   docker compose down -v
-   docker compose up --build -d
+  colima start
+  docker compose down -v
+  docker compose pull
+  docker compose up --build -d
+  docker compose ps
+  ```
 
-   ```
+  MLflow → http://localhost:5000
+  MinIO → http://localhost:9001.   (User: minioadmin, Pass: minioadmin)
+  Prometheus → http://localhost:9090
+  Grafana → http://localhost:3000
+
+   
 3. Create MinIO buckets and Kafka topics (local):
+# Create MinIO buckets and Kafka topics (local):
+docker exec -it minio mc alias set local http://localhost:9000 minioadmin minioadmin
+docker exec -it minio mc mb local/mlflow-artifacts
+docker exec -it minio mc ls local
    ```bash
    chmod +x scripts/setup_minio_kafka.sh
    ./scripts/setup_minio_kafka.sh
    ```
-## Trigger a training run (inside the trainer container):
-```bash
-# run the train_wrapper inside the trainer service
-docker compose run --rm trainer
-
-
-docker compose build fastapi-inference
-docker compose run --rm fastapi-inference
-
-docker compose down -v
-docker compose up --build -d
-docker compose ps
-
-```
-
 
 4. Testing
+python test_alerts.py
 curl http://localhost:8000/docs
 curl -X POST "http://localhost:8000/predict" \
  -H "Content-Type: application/json" \
