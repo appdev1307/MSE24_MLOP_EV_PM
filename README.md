@@ -1,15 +1,11 @@
-Here’s a **clean, professional, README-quality formatting** of your page.
-I’ve **only structured and clarified**, not changed your technical content.
-
-You can copy–paste this directly into `README.md`.
 
 ---
 
 # 🚗 Predictive Maintenance MLOps – Example Project
 
-This repository contains a **fully runnable local MLOps prototype** for **EV Predictive Maintenance**, built around **MLflow Model Registry**, **Docker**, and **FastAPI**.
+This repository contains a **fully runnable local MLOps prototype** for **EV Predictive Maintenance**, built using **MLflow Model Registry**, **Docker**, and **FastAPI**.
 
-It demonstrates **end-to-end lifecycle management**:
+It demonstrates an **end-to-end MLOps lifecycle**:
 
 * Model training
 * Model versioning & promotion
@@ -20,7 +16,7 @@ It demonstrates **end-to-end lifecycle management**:
 
 ## 🧠 Architecture & Flow
 
-```
+```text
 ┌──────────────┐
 │   Trainer    │
 │ (Batch Job)  │
@@ -47,22 +43,22 @@ It demonstrates **end-to-end lifecycle management**:
 └──────────────────────────┘
 ```
 
-✔ No hardcoded file paths
-✔ Hot-swappable models
-✔ Safe rollback via registry
+✔ No hardcoded model paths
+✔ Safe rollback via MLflow stages
+✔ Production-ready inference loading
 
 ---
 
 ## 📁 Project Structure
 
-```
+```text
 project/
-├── models/              # Model artifacts (.joblib) created by training jobs
-├── src/                 # Training & feature engineering scripts
-├── monitoring/          # Prometheus configuration
-├── alert_service/       # Alerting & notification services
-├── scripts/             # Setup & helper scripts
-└── docker-compose.yml   # Full local MLOps stack
+├── models/              # Model artifacts (.joblib)
+├── src/                 # Training & feature engineering
+├── monitoring/          # Prometheus & alert rules
+├── alert_service/       # Alerting microservice
+├── scripts/             # Setup utilities
+└── docker-compose.yml   # Local MLOps stack
 ```
 
 ---
@@ -77,9 +73,7 @@ project/
 
 ---
 
-### 2️⃣ Start the MLOps stack
-
-From the project root:
+### 2️⃣ Start the MLOps Stack
 
 ```bash
 colima start
@@ -91,7 +85,7 @@ docker compose ps
 
 ---
 
-### 3️⃣ Service URLs
+### 3️⃣ Service Endpoints
 
 | Service       | URL                                            |
 | ------------- | ---------------------------------------------- |
@@ -102,7 +96,7 @@ docker compose ps
 
 **MinIO credentials**
 
-```
+```text
 User: minioadmin
 Pass: minioadmin
 ```
@@ -111,7 +105,7 @@ Pass: minioadmin
 
 ## 🪣 MinIO & Kafka Setup (Local)
 
-Create required buckets and topics:
+### Manual Setup
 
 ```bash
 docker exec -it minio mc alias set local http://localhost:9000 minioadmin minioadmin
@@ -119,7 +113,7 @@ docker exec -it minio mc mb local/mlflow-artifacts
 docker exec -it minio mc ls local
 ```
 
-Or run the setup script:
+### Scripted Setup
 
 ```bash
 chmod +x scripts/setup_minio_kafka.sh
@@ -140,13 +134,17 @@ python test_alerts.py
 
 ### 📖 API Documentation
 
-```bash
+Open in browser:
+
+```text
 http://localhost:8000/docs
 ```
 
 ---
 
-### 🔮 Prediction API – Example 1 (Detailed Telemetry)
+## 🔮 Prediction API Examples
+
+### Example 1 – Full Telemetry Payload
 
 ```bash
 curl -X POST "http://localhost:8000/predict" \
@@ -180,7 +178,7 @@ curl -X POST "http://localhost:8000/predict" \
 
 ---
 
-### 🔮 Prediction API – Example 2 (Simplified Payload)
+### Example 2 – Simplified Payload
 
 ```bash
 curl -X POST "http://localhost:8000/predict" \
@@ -206,9 +204,9 @@ curl -X POST "http://localhost:8000/predict" \
 ## ✅ What This Project Demonstrates
 
 * MLflow **Model Registry** (Staging → Production)
-* Registry-based inference loading
-* Dockerized MLOps stack
-* Monitoring & alerting integration
-* Production-ready MLOps patterns
+* Registry-based inference loading (`models:/name/Production`)
+* Dockerized local MLOps stack
+* Monitoring with Prometheus & Grafana
+* Alert-driven predictive maintenance
 
 ---
