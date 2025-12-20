@@ -136,16 +136,15 @@ python test_alerts.py
 ---
 
 ## ✅ Key Design Highlights (Level-2 MLOps maturity)
-
-✔ Dockerized training & inference
-✔ FastAPI inference service
-✔ MLflow tracking + artifacts
-✔ Kafka event streaming
-✔ Prometheus + Grafana monitoring
-✔ Alertmanager
-✔ Synthetic test cases
-✔ Offline training pipeline
-✔ Feature-rich EV dataset
+- Dockerized training & inference
+- FastAPI inference service
+- MLflow tracking + artifacts
+- Kafka event streaming
+- Prometheus + Grafana monitoring
+- Alertmanager
+- Synthetic test cases
+- Offline training pipeline
+- Feature-rich EV dataset
 
 
 ## Limitation
