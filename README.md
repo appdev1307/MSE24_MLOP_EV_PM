@@ -1,8 +1,7 @@
 ```md
 # Predictive Maintenance MLOps – Example Project
 
-A runnable **local MLOps prototype** for EV Predictive Maintenance using MLflow,
-FastAPI, Kafka, Prometheus, and Grafana.
+A runnable **local MLOps prototype** for EV Predictive Maintenance using MLflow, FastAPI, Kafka, Prometheus, and Grafana.
 
 ---
 
@@ -18,19 +17,19 @@ FastAPI, Kafka, Prometheus, and Grafana.
 ┌──────────────────────────────┐
 │ MLflow Tracking + Registry   │
 │                              │
-│ ev-anomaly                   │
-│ ev-classifier                │
-│ ev-rul                       │
-│  ├─ v1 (Staging)             │
-│  └─ v2 (Production)          │
+│   ev-anomaly                 │
+│   ev-classifier              │
+│   ev-rul                     │
+│   ├─ v1 (Staging)            │
+│   └─ v2 (Production)         │
 └─────────┬────────────────────┘
           │ load by name + stage
           ▼
 ┌──────────────────────────────┐
-│ FastAPI Inference Service    │
+│   FastAPI Inference Service  │
 │                              │
-│ models:/ev-rul/Production    │
-│ models:/ev-classifier/Prod   │
+│   models:/ev-rul/Production  │
+│   models:/ev-classifier/Prod │
 └──────────────────────────────┘
 ```
 
@@ -40,11 +39,11 @@ FastAPI, Kafka, Prometheus, and Grafana.
 
 ```text
 project/
-├── models/             # Local model artifacts (.joblib)
-├── src/                # Training scripts
-├── monitoring/         # Prometheus config
-├── alert_service/      # Alert service
-├── scripts/            # Setup scripts
+├── models/              # Local model artifacts (.joblib)
+├── src/                 # Training scripts
+├── monitoring/          # Prometheus config
+├── alert_service/       # Alert service
+├── scripts/             # Setup scripts
 └── docker-compose.yml
 ```
 
@@ -56,34 +55,26 @@ project/
 
 - Docker
 - Docker Compose
-- Colima (macOS)
-
----
+- Colima (recommended for macOS)
 
 ### 2. Start the stack
 
 ```bash
 colima start
-
 docker compose down -v
 docker compose pull
 docker compose up --build -d
-
 docker compose ps
 ```
 
----
-
 ### 3. Access services
 
-- **MLflow** → http://localhost:5000
-- **MinIO Console** → http://localhost:9001  
-  - User: `minioadmin`
+- **MLflow** → [http://localhost:5000](http://localhost:5000)
+- **MinIO Console** → [http://localhost:9001](http://localhost:9001)  
+  - User: `minioadmin`  
   - Password: `minioadmin`
-- **Prometheus** → http://localhost:9090
-- **Grafana** → http://localhost:3000
-
----
+- **Prometheus** → [http://localhost:9090](http://localhost:9090)
+- **Grafana** → [http://localhost:3000](http://localhost:3000)
 
 ### 4. Create MinIO bucket (required for MLflow)
 
@@ -93,7 +84,7 @@ docker exec -it minio mc mb local/mlflow-artifacts
 docker exec -it minio mc ls local
 ```
 
-Or run the helper script:
+Or use the helper script:
 
 ```bash
 chmod +x scripts/setup_minio_kafka.sh
@@ -106,39 +97,35 @@ chmod +x scripts/setup_minio_kafka.sh
 
 ### FastAPI Swagger UI
 
-```text
-http://localhost:8000/docs
-```
-
----
+[http://localhost:8000/docs](http://localhost:8000/docs)
 
 ### Sample prediction request
 
 ```bash
 curl -X POST "http://localhost:8000/predict" \
--H "Content-Type: application/json" \
--d '{
-  "data": {
-    "SoC": 0.10,
-    "SoH": 0.50,
-    "Battery_Voltage": 200,
-    "Battery_Current": 350,
-    "Battery_Temperature": 95,
-    "Charge_Cycles": 2000,
-    "Motor_Temperature": 150,
-    "Ambient_Temperature": 80,
-    "Distance_Traveled": 700000
-  }
-}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": {
+      "SoC": 0.10,
+      "SoH": 0.50,
+      "Battery_Voltage": 200,
+      "Battery_Current": 350,
+      "Battery_Temperature": 95,
+      "Charge_Cycles": 2000,
+      "Motor_Temperature": 150,
+      "Ambient_Temperature": 80,
+      "Distance_Traveled": 700000
+    }
+  }'
 ```
 
 ---
 
 ## ✅ Key Design Highlights
 
-- MLflow Model Registry (Staging / Production)
-- FastAPI loads models via `models:/name/Production`
-- Kafka-based alerting
-- Prometheus + Grafana monitoring
-- MinIO (S3-compatible) artifact storage
+- MLflow Model Registry with Staging and Production stages
+- FastAPI loads models directly via `models:/<name>/Production`
+- Kafka-based alerting system
+- Prometheus metrics collection + Grafana dashboards for monitoring
+- MinIO as S3-compatible artifact storage for MLflow
 ```
