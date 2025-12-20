@@ -1,4 +1,4 @@
-````md
+```md
 # Predictive Maintenance MLOps – Example Project
 
 A runnable **local MLOps prototype** for EV Predictive Maintenance using MLflow,
@@ -32,7 +32,7 @@ FastAPI, Kafka, Prometheus, and Grafana.
 │ models:/ev-rul/Production    │
 │ models:/ev-classifier/Prod   │
 └──────────────────────────────┘
-````
+```
 
 ---
 
@@ -54,9 +54,9 @@ project/
 
 ### 1. Prerequisites
 
-* Docker
-* Docker Compose
-* Colima (macOS)
+- Docker
+- Docker Compose
+- Colima (macOS)
 
 ---
 
@@ -76,13 +76,12 @@ docker compose ps
 
 ### 3. Access services
 
-* **MLflow** → [http://localhost:5000](http://localhost:5000)
-* **MinIO Console** → [http://localhost:9001](http://localhost:9001)
-
-  * User: `minioadmin`
-  * Password: `minioadmin`
-* **Prometheus** → [http://localhost:9090](http://localhost:9090)
-* **Grafana** → [http://localhost:3000](http://localhost:3000)
+- **MLflow** → http://localhost:5000
+- **MinIO Console** → http://localhost:9001  
+  - User: `minioadmin`
+  - Password: `minioadmin`
+- **Prometheus** → http://localhost:9090
+- **Grafana** → http://localhost:3000
 
 ---
 
@@ -137,8 +136,9 @@ curl -X POST "http://localhost:8000/predict" \
 
 ## ✅ Key Design Highlights
 
-* MLflow Model Registry (Staging / Production)
-* FastAPI loads models via `models:/name/Production`
-* Kafka-based alerting
-* Prometheus + Grafana monitoring
-* MinIO (S3-compatible) artifact storage
+- MLflow Model Registry (Staging / Production)
+- FastAPI loads models via `models:/name/Production`
+- Kafka-based alerting
+- Prometheus + Grafana monitoring
+- MinIO (S3-compatible) artifact storage
+```
