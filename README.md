@@ -1,84 +1,157 @@
-# Predictive Maintenance MLOps - Example Project
+Here’s a **clean, professional, README-quality formatting** of your page.
+I’ve **only structured and clarified**, not changed your technical content.
 
-This package contains a runnable local MLOps prototype for Predictive Maintenance
-using your EV telemetry CSV.
+You can copy–paste this directly into `README.md`.
 
-## Flow
+---
+
+# 🚗 Predictive Maintenance MLOps – Example Project
+
+This repository contains a **fully runnable local MLOps prototype** for **EV Predictive Maintenance**, built around **MLflow Model Registry**, **Docker**, and **FastAPI**.
+
+It demonstrates **end-to-end lifecycle management**:
+
+* Model training
+* Model versioning & promotion
+* Registry-based inference
+* Monitoring & alerting
+
+---
+
+## 🧠 Architecture & Flow
+
+```
 ┌──────────────┐
-│  Trainer     │
-│ (batch job)  │
+│   Trainer    │
+│ (Batch Job)  │
 └──────┬───────┘
-       │ register + evaluate
+       │ Train + Evaluate + Register
        ▼
-┌────────────────────────┐
-│ MLflow Tracking +      │
-│ Model Registry         │
-│                        │
-│ ev-anomaly             │
-│ ev-classifier          │
-│ ev-rul                 │
-│  ├─ v1 (Staging)       │
-│  └─ v2 (Production)    │
-└─────────┬──────────────┘
-          │ load by name+stage
+┌──────────────────────────┐
+│ MLflow Tracking Server   │
+│ + Model Registry         │
+│                          │
+│ ev-anomaly               │
+│ ev-classifier            │
+│ ev-rul                   │
+│  ├─ v1 (Staging)         │
+│  └─ v2 (Production)      │
+└─────────┬────────────────┘
+          │ Load by name + stage
           ▼
-┌────────────────────────┐
-│ FastAPI Inference      │
-│                        │
-│ models:/ev-rul/Prod    │
-│ models:/ev-classifier  │
-└────────────────────────┘
+┌──────────────────────────┐
+│ FastAPI Inference API    │
+│                          │
+│ models:/ev-rul/Prod      │
+│ models:/ev-classifier    │
+└──────────────────────────┘
+```
 
+✔ No hardcoded file paths
+✔ Hot-swappable models
+✔ Safe rollback via registry
 
-## Project layout
+---
+
+## 📁 Project Structure
 
 ```
 project/
-├── models/           # model artifacts written by your training scripts (.joblib)
-├── src/              # training scripts ()
-├── monitoring/       # prometheus config
-├── alert_service/    # Alert services
-└── docker-compose.yml
+├── models/              # Model artifacts (.joblib) created by training jobs
+├── src/                 # Training & feature engineering scripts
+├── monitoring/          # Prometheus configuration
+├── alert_service/       # Alerting & notification services
+├── scripts/             # Setup & helper scripts
+└── docker-compose.yml   # Full local MLOps stack
 ```
 
-## Quick start (local, development)
+---
 
-1. Make sure Docker and Docker Compose are installed.
-2. From the project root, run:
-   ```
-  colima start
-  docker compose down -v
-  docker compose pull
-  docker compose up --build -d
-  docker compose ps
-  ```
+## 🚀 Quick Start (Local Development)
 
-  MLflow → http://localhost:5000
-  MinIO → http://localhost:9001.   (User: minioadmin, Pass: minioadmin)
-  Prometheus → http://localhost:9090
-  Grafana → http://localhost:3000
+### 1️⃣ Prerequisites
 
-   
-3. Create MinIO buckets and Kafka topics (local):
-# Create MinIO buckets and Kafka topics (local):
+* Docker
+* Docker Compose
+* Colima (macOS)
+
+---
+
+### 2️⃣ Start the MLOps stack
+
+From the project root:
+
+```bash
+colima start
+docker compose down -v
+docker compose pull
+docker compose up --build -d
+docker compose ps
+```
+
+---
+
+### 3️⃣ Service URLs
+
+| Service       | URL                                            |
+| ------------- | ---------------------------------------------- |
+| MLflow        | [http://localhost:5000](http://localhost:5000) |
+| MinIO Console | [http://localhost:9001](http://localhost:9001) |
+| Prometheus    | [http://localhost:9090](http://localhost:9090) |
+| Grafana       | [http://localhost:3000](http://localhost:3000) |
+
+**MinIO credentials**
+
+```
+User: minioadmin
+Pass: minioadmin
+```
+
+---
+
+## 🪣 MinIO & Kafka Setup (Local)
+
+Create required buckets and topics:
+
+```bash
 docker exec -it minio mc alias set local http://localhost:9000 minioadmin minioadmin
 docker exec -it minio mc mb local/mlflow-artifacts
 docker exec -it minio mc ls local
-   ```
-   chmod +x scripts/setup_minio_kafka.sh
-   ./scripts/setup_minio_kafka.sh
-   ```
-
-4. Testing
 ```
+
+Or run the setup script:
+
+```bash
+chmod +x scripts/setup_minio_kafka.sh
+./scripts/setup_minio_kafka.sh
+```
+
+---
+
+## 🧪 Testing & Validation
+
+### 🔔 Alert Testing
+
+```bash
 python test_alerts.py
+```
 
+---
+
+### 📖 API Documentation
+
+```bash
+http://localhost:8000/docs
 ```
-```
-curl http://localhost:8000/docs
+
+---
+
+### 🔮 Prediction API – Example 1 (Detailed Telemetry)
+
+```bash
 curl -X POST "http://localhost:8000/predict" \
- -H "Content-Type: application/json" \
- -d '{
+-H "Content-Type: application/json" \
+-d '{
   "data": {
     "SoC": 0.10,
     "SoH": 0.50,
@@ -105,7 +178,11 @@ curl -X POST "http://localhost:8000/predict" \
 }'
 ```
 
-```
+---
+
+### 🔮 Prediction API – Example 2 (Simplified Payload)
+
+```bash
 curl -X POST "http://localhost:8000/predict" \
 -H "Content-Type: application/json" \
 -d '{
@@ -124,3 +201,14 @@ curl -X POST "http://localhost:8000/predict" \
 }'
 ```
 
+---
+
+## ✅ What This Project Demonstrates
+
+* MLflow **Model Registry** (Staging → Production)
+* Registry-based inference loading
+* Dockerized MLOps stack
+* Monitoring & alerting integration
+* Production-ready MLOps patterns
+
+---
