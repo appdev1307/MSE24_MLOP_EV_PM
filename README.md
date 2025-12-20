@@ -3,6 +3,33 @@
 This package contains a runnable local MLOps prototype for Predictive Maintenance
 using your EV telemetry CSV.
 
+## Flow
+┌──────────────┐
+│  Trainer     │
+│ (batch job)  │
+└──────┬───────┘
+       │ register + evaluate
+       ▼
+┌────────────────────────┐
+│ MLflow Tracking +      │
+│ Model Registry         │
+│                        │
+│ ev-anomaly             │
+│ ev-classifier          │
+│ ev-rul                 │
+│  ├─ v1 (Staging)       │
+│  └─ v2 (Production)    │
+└─────────┬──────────────┘
+          │ load by name+stage
+          ▼
+┌────────────────────────┐
+│ FastAPI Inference      │
+│                        │
+│ models:/ev-rul/Prod    │
+│ models:/ev-classifier  │
+└────────────────────────┘
+
+
 ## Project layout
 
 ```
@@ -18,7 +45,7 @@ project/
 
 1. Make sure Docker and Docker Compose are installed.
 2. From the project root, run:
-   ```bash
+   ```
   colima start
   docker compose down -v
   docker compose pull
@@ -37,13 +64,17 @@ project/
 docker exec -it minio mc alias set local http://localhost:9000 minioadmin minioadmin
 docker exec -it minio mc mb local/mlflow-artifacts
 docker exec -it minio mc ls local
-   ```bash
+   ```
    chmod +x scripts/setup_minio_kafka.sh
    ./scripts/setup_minio_kafka.sh
    ```
 
 4. Testing
+```
 python test_alerts.py
+
+```
+```
 curl http://localhost:8000/docs
 curl -X POST "http://localhost:8000/predict" \
  -H "Content-Type: application/json" \
@@ -72,7 +103,9 @@ curl -X POST "http://localhost:8000/predict" \
     "TTF": 50
   }
 }'
+```
 
+```
 curl -X POST "http://localhost:8000/predict" \
 -H "Content-Type: application/json" \
 -d '{
@@ -89,4 +122,5 @@ curl -X POST "http://localhost:8000/predict" \
     "Vehicle_ID": "EV-1"
   }
 }'
+```
 
