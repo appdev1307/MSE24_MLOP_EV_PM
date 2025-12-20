@@ -1,11 +1,15 @@
 FROM python:3.10-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends             build-essential             gcc             libpq-dev             curl             && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /workspace
-COPY requirements.txt requirements.txt
+
+RUN apt-get update && \
+    apt-get install -y gcc g++ git && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install lightgbm
 
 COPY . .
-ENV PYTHONUNBUFFERED=1
-CMD ["python", "train_wrapper.py"]
+
+CMD ["python", "src/train_wrapper.py"]

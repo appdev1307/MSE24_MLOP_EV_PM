@@ -1,71 +1,66 @@
 import os
 import subprocess
 import mlflow
-import glob
-from mlflow.tracking import MlflowClient
+import shutil
+from pathlib import Path
 
-# mlflow setup
-MLFLOW_URI = os.environ.get('MLFLOW_TRACKING_URI', 'http://localhost:5000')
-mlflow.set_tracking_uri(MLFLOW_URI)
-EXPERIMENT_NAME = os.environ.get('MLFLOW_EXPERIMENT', 'predictive-maintenance')
-mlflow.set_experiment(EXPERIMENT_NAME)
+# ==============================
+# CONFIG
+# ==============================
+MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance")
 
-# Scripts to run (comma separated)
-#SCRIPTS = os.environ.get('TRAINING_SCRIPTS', 'classifier.py,rul.py,anomaly.py').split(',')
 SCRIPTS = [
     "src/classifier.py",
     "src/rul.py",
     "src/anomaly.py"
 ]
 
-# Default to project-level models folder
-DEFAULT_MODEL_GLOB = './models/*.joblib'
-MODEL_GLOBS = [g.strip() for g in os.environ.get('MODEL_GLOBS', DEFAULT_MODEL_GLOB).split(',') if g.strip()]
+MODELS_DIR = Path("models")
+MODEL_SUBDIRS = ["anomaly", "classifier", "rul"]
 
-def run_scripts():
-    for s in SCRIPTS:
-        s = s.strip()
-        if not s:
-            continue
-        if not os.path.exists(s):
-            print(f"Warning: script {s} not found in working directory {os.getcwd()}")
-            continue
-        print(f"Running {s} ...")
-        ret = subprocess.run(['python', s], check=False)
+# ==============================
+# SETUP
+# ==============================
+mlflow.set_tracking_uri(MLFLOW_URI)
+mlflow.set_experiment(EXPERIMENT_NAME)
+
+# Clean old models (DEV MODE behavior)
+if MODELS_DIR.exists():
+    print("🧹 Cleaning old models directory")
+    shutil.rmtree(MODELS_DIR)
+
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+# ==============================
+# HELPERS
+# ==============================
+def run_scripts_or_fail():
+    for script in SCRIPTS:
+        print(f"▶ Running {script}")
+        ret = subprocess.run(["python", script])
         if ret.returncode != 0:
-            print(f"Warning: script {s} exited with code {ret.returncode}")
+            raise RuntimeError(f"❌ Training failed in {script}")
 
-def find_and_log_artifacts():
-    artifacts = []
-    for g in MODEL_GLOBS:
-        matches = glob.glob(g, recursive=True)
-        if matches:
-            artifacts.extend(matches)
+def log_models():
+    for subdir in MODEL_SUBDIRS:
+        path = MODELS_DIR / subdir
+        if path.exists():
+            print(f"📦 Logging {path}")
+            mlflow.log_artifacts(str(path), artifact_path=f"models/{subdir}")
+        else:
+            print(f"⚠️ Skipping missing model dir: {path}")
 
-    if not artifacts:
-        # fallback: search common patterns anywhere in repo
-        artifacts = glob.glob('**/*.joblib', recursive=True) + glob.glob('**/*.pkl', recursive=True)
-
-    artifacts = sorted(set(artifacts))
-
-    if not artifacts:
-        print("No model artifacts found to log.")
-        return []
-
+# ==============================
+# MAIN
+# ==============================
+if __name__ == "__main__":
     with mlflow.start_run() as run:
-        mlflow.log_param('scripts', ','.join(SCRIPTS))
-        for artifact in artifacts:
-            print(f"Logging artifact {artifact}")
-            mlflow.log_artifact(artifact, artifact_path='models')
-        print('Logged artifacts for run_id=', run.info.run_id)
-    return artifacts
+        mlflow.log_param("pipeline", "ev_predictive_maintenance")
+        mlflow.log_param("scripts", ",".join(SCRIPTS))
 
-if __name__ == '__main__':
-    run_scripts()
-    logged = find_and_log_artifacts()
-    if logged:
-        print('Artifacts logged to MLflow:')
-        for a in logged:
-            print(' -', a)
-    else:
-        print('No artifacts were logged.')
+        run_scripts_or_fail()
+        log_models()
+
+        print("✅ Training pipeline completed")
+        print("🏃 Run:", run.info.run_id)

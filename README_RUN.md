@@ -96,17 +96,21 @@ colima start
 docker compose down -v
 docker compose pull
 docker compose up --build -d
-
-
 docker compose ps
 
 
 MLflow → http://localhost:5000
-MinIO → http://localhost:9000 (console: 9001)
+MinIO → http://localhost:9001.   (User: minioadmin, Pass: minioadmin)
 Prometheus → http://localhost:9090
 Grafana → http://localhost:3000
 
 ## docker
+
+# Create MinIO buckets and Kafka topics (local):
+docker exec -it minio mc alias set local http://localhost:9000 minioadmin minioadmin
+docker exec -it minio mc mb local/mlflow-artifacts
+docker exec -it minio mc ls local
+
 
 ## Create MinIO buckets and Kafka topics (local):
 ```bash
