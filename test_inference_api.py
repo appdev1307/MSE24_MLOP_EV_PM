@@ -22,10 +22,7 @@ def run_test_case(name, data, expect_fault: bool):
 
     print("HTTP Status:", response.status_code)
 
-    if response.status_code != 200:
-        print("❌ API Error")
-        print(response.text)
-        return
+    assert response.status_code == 200, "❌ API returned non-200"
 
     try:
         result = response.json()
@@ -35,15 +32,23 @@ def run_test_case(name, data, expect_fault: bool):
         print(response.text)
         return
 
-    # ===================== BASIC ASSERTIONS =====================
+    # ===================== COMMON ASSERTIONS =====================
     assert "IF_Anomaly" in result, "Missing IF_Anomaly"
-    assert "status" in result, "Missing status"
 
-    if expect_fault:
-        assert result["IF_Anomaly"] == 1, "Expected anomaly but got normal"
-        assert result.get("is_fault", True), "Expected fault flag"
-    else:
+    # ===================== NORMAL CASE =====================
+    if not expect_fault:
         assert result["IF_Anomaly"] == 0, "Expected normal but got anomaly"
+        assert "status" in result, "Missing status for normal case"
+        print("🟢 Normal case validated")
+
+    # ===================== FAULT CASE =====================
+    else:
+        assert result["IF_Anomaly"] == 1, "Expected anomaly but got normal"
+        assert "classifier_label" in result, "Missing classifier_label"
+        assert "is_fault" in result, "Missing is_fault"
+        assert "RUL_estimated" in result, "Missing RUL_estimated"
+        assert result["is_fault"] is True
+        print("🔴 Fault case validated")
 
     print("✅ Test passed")
 
