@@ -4,6 +4,7 @@
 # otherwise uses the generated IF_Anomaly label (unsupervised -> supervised fallback).
 
 import os
+from pathlib import Path
 import joblib
 import pandas as pd
 import numpy as np
@@ -12,13 +13,15 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from xgboost import XGBClassifier
 from sklearn.metrics import classification_report, accuracy_score
 
-BASE_CSV = "EV_Predictive_Maintenance_Dataset_15min.csv"
-PARQUET_IF = "data/features_with_anomaly.parquet"
-MODEL_DIR = "models/classifier"
-os.makedirs(MODEL_DIR, exist_ok=True)
+# Resolve paths relative to repository root to avoid CWD issues (Docker/local)
+ROOT = Path(__file__).resolve().parent
+BASE_CSV = ROOT / "data" / "EV_Predictive_Maintenance_Dataset_15min.csv"
+PARQUET_IF = ROOT.parent / "data" / "features_with_anomaly.parquet"
+MODEL_DIR = ROOT.parent / "models" / "classifier"
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 # Load data: prefer annotated parquet (contains IF_Anomaly)
-if os.path.exists(PARQUET_IF):
+if PARQUET_IF.exists():
     df = pd.read_parquet(PARQUET_IF)
     print("Loaded annotated data:", PARQUET_IF)
 else:

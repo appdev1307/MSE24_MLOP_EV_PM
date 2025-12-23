@@ -1,16 +1,19 @@
 # src/anomaly.py
 import os
+from pathlib import Path
 import joblib
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import IsolationForest
 
-CSV = "src/data/EV_Predictive_Maintenance_Dataset_15min.csv"
-OUT_PARQUET = "data/features_with_anomaly.parquet"
-MODEL_DIR = "models/anomaly"
-os.makedirs(MODEL_DIR, exist_ok=True)
-os.makedirs("data", exist_ok=True)
+# Resolve paths relative to repository root for Docker/local consistency
+ROOT = Path(__file__).resolve().parent
+CSV = ROOT / "data" / "EV_Predictive_Maintenance_Dataset_15min.csv"
+OUT_PARQUET = ROOT.parent / "data" / "features_with_anomaly.parquet"
+MODEL_DIR = ROOT.parent / "models" / "anomaly"
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
+OUT_PARQUET.parent.mkdir(parents=True, exist_ok=True)
 
 print("Loading:", CSV)
 df = pd.read_csv(CSV)

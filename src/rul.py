@@ -3,6 +3,7 @@
 # RUL trained on full dataset; RUL model will accept same numeric features + encoded fault label (if present)
 
 import os
+from pathlib import Path
 import joblib
 import pandas as pd
 import numpy as np
@@ -11,13 +12,15 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_squared_error
 from math import sqrt
 
-BASE_CSV = "EV_Predictive_Maintenance_Dataset_15min.csv"
-PARQUET_IF = "data/features_with_anomaly.parquet"
-MODEL_DIR = "models/rul"
-os.makedirs(MODEL_DIR, exist_ok=True)
+# Resolve paths relative to repository root for Docker/local consistency
+ROOT = Path(__file__).resolve().parent
+BASE_CSV = ROOT / "data" / "EV_Predictive_Maintenance_Dataset_15min.csv"
+PARQUET_IF = ROOT.parent / "data" / "features_with_anomaly.parquet"
+MODEL_DIR = ROOT.parent / "models" / "rul"
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 # Load data (prefer annotated)
-if os.path.exists(PARQUET_IF):
+if PARQUET_IF.exists():
     df = pd.read_parquet(PARQUET_IF)
     print("Loaded annotated:", PARQUET_IF)
 else:

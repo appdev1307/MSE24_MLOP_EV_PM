@@ -1,5 +1,7 @@
-```md
+````md
 # Predictive Maintenance MLOps – Example Project
+
+**Đề tài**: Predictive Maintenance on Vehicle Telemetry Data
 
 A runnable **local MLOps prototype** for EV Predictive Maintenance using MLflow, FastAPI, Kafka, Prometheus, and Grafana.
 
@@ -32,6 +34,7 @@ A runnable **local MLOps prototype** for EV Predictive Maintenance using MLflow,
 │   models:/ev-classifier/Prod │
 └──────────────────────────────┘
 ```
+````
 
 ---
 
@@ -83,15 +86,17 @@ chmod +x scripts/setup_minio_kafka.sh
 ```
 
 ### 4. Run docker to train the models
+
 ```bash
 docker compose build --no-cache trainer
 docker compose up trainer
 ```
 
 ### 5. Access services
+
 - **MLflow** → [http://localhost:5000](http://localhost:5000)
-- **MinIO Console** → [http://localhost:9001](http://localhost:9001)  
-  - User: `minioadmin`  
+- **MinIO Console** → [http://localhost:9001](http://localhost:9001)
+  - User: `minioadmin`
   - Password: `minioadmin`
 - **Prometheus** → [http://localhost:9090](http://localhost:9090)
 - **Grafana** → [http://localhost:3000](http://localhost:3000)
@@ -136,6 +141,7 @@ python test_alerts.py
 ---
 
 ## ✅ Key Design Highlights (Level-2 MLOps maturity)
+
 - Dockerized training & inference
 - FastAPI inference service
 - MLflow tracking + artifacts
@@ -146,8 +152,8 @@ python test_alerts.py
 - Offline training pipeline
 - Feature-rich EV dataset
 
-
 ## Limitation
+
 - Model Registry Lifecycle Control (CRITICAL): Train → Register → Validate → Promote → Serve → Rollback
 - Inference Model Version Pinning
   classifier: Production v3
@@ -165,5 +171,6 @@ python test_alerts.py
 - CI/CD for ML (Not Just Docker): Git push → Train → Validate → Register → Deploy
 - Reproducibility & Lineage
 
+```
 
 ```
