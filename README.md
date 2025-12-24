@@ -53,6 +53,19 @@ Lệnh này sẽ chạy: MinIO, MLflow, Kafka, Zookeeper, Prometheus, Grafana, A
 
 ### 2. Huấn luyện toàn bộ mô hình
 
+**Option 1: Sử dụng Training Service UI (Khuyến nghị - Dễ nhất)**
+
+```powershell
+# Khởi động Training Service
+docker compose up -d training-service
+
+# Mở browser: http://localhost:8080
+# Click "Start Training" để chạy training tự động
+# UI sẽ hiển thị log real-time và status
+```
+
+**Option 2: Chạy trực tiếp qua Docker (như cũ)**
+
 ```powershell
 docker compose build trainer         # build image trainer (nếu lần đầu hoặc mới sửa code)
 docker compose up trainer            # chạy train_wrapper, train anomaly + classifier + RUL
@@ -69,6 +82,9 @@ docker compose restart fastapi-inference # nếu đã chạy từ trước, cầ
 
 ### 4. Truy cập các service
 
+- **Training Service UI** (MỚI): [http://localhost:8080](http://localhost:8080)  
+  - Web UI để trigger và monitor training jobs
+  - Click "Start Training" để chạy training pipeline tự động
 - **FastAPI Inference**: [http://localhost:8000/docs](http://localhost:8000/docs)  
 - **MLflow UI**: [http://localhost:5000](http://localhost:5000)  
 - **MinIO Console**: [http://localhost:9001](http://localhost:9001)  
@@ -77,7 +93,7 @@ docker compose restart fastapi-inference # nếu đã chạy từ trước, cầ
 - **Grafana**: [http://localhost:3000](http://localhost:3000)  
 - **Alertmanager**: [http://localhost:9093](http://localhost:9093)
 
-Với người mới, chỉ cần: mở **FastAPI docs**, **MLflow UI**, và (tuỳ chọn) **Grafana** để “vừa chạy vừa xem”.
+**Khuyến nghị cho người mới**: Bắt đầu với **Training Service UI** để train models, sau đó mở **FastAPI docs** và **MLflow UI** để test và xem kết quả.
 
 ---
 

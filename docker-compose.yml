@@ -75,7 +75,7 @@ services:
       - MODEL_GLOBS=./models/*.joblib
     volumes:
       - ./:/workspace
-    command: ["python", "src/train_wrapper.py"]  
+    command: ["python", "src/train_wrapper.py"]
 
   fastapi-inference:
     build:
@@ -91,10 +91,14 @@ services:
       - AWS_ACCESS_KEY_ID=minioadmin
       - AWS_SECRET_ACCESS_KEY=minioadmin
       - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - USE_DOCKER=true
+      - TRAINER_SCRIPT=src/train_wrapper.py
     ports:
       - 8000:8000
     volumes:
       - ./:/workspace
+      # Mount Docker socket để có thể chạy docker compose từ trong container
+      - /var/run/docker.sock:/var/run/docker.sock
     command: ["uvicorn", "src.inference_server:app", "--host", "0.0.0.0", "--port", "8000"]
 
   alert-service:
