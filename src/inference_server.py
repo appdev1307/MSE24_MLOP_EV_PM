@@ -10,6 +10,20 @@ from pydantic import BaseModel
 import uvicorn
 import tempfile
 
+# Prometheus metrics
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter
+
+# Custom counters for alerting
+PREDICTIONS_TOTAL = Counter(
+    "predictions_total",
+    "Total number of inference predictions made"
+)
+ANOMALY_PREDICTIONS = Counter(
+    "anomaly_predictions_total",
+    "Number of times anomaly was detected (IF_Anomaly == 1)"
+)
+
 # ==============================
 # MLflow Config
 # ==============================
@@ -28,10 +42,9 @@ MODEL_CACHE_DIR = os.path.join(tempfile.gettempdir(), "mlflow_ev_models")
 os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
 
 # ==============================
-# Download production model (bundle root)
+# Download production model (@production alias)
 # ==============================
 def download_production_model(model_name: str):
-    """Download the @production version of a model. Returns the local directory containing the files."""
     model_uri = f"models:/{model_name}@production"
     local_dir = os.path.join(MODEL_CACHE_DIR, model_name)
 
@@ -47,7 +60,7 @@ def download_production_model(model_name: str):
         print(f"❌ Failed to download {model_name}@production: {e}")
         return None
 
-# Download all models
+# Download all models at startup
 print("⬇️ Downloading models from MLflow (@production)...")
 anomaly_dir = download_production_model(MODEL_NAMES["anomaly"])
 classifier_dir = download_production_model(MODEL_NAMES["classifier"])
@@ -71,7 +84,7 @@ def safe_load(directory: str | None, filename: str, name: str):
 # Load Anomaly
 isof = safe_load(anomaly_dir, "isolation_forest.joblib", "IsolationForest")
 if_scaler = safe_load(anomaly_dir, "scaler.joblib", "Anomaly Scaler")
-if_features = safe_load(anomaly_dir, "isofeat.joblib", "Anomaly Features")  # correct name
+if_features = safe_load(anomaly_dir, "isofeat.joblib", "Anomaly Features")  # original name
 
 # Load Classifier
 clf = safe_load(classifier_dir, "classifier.joblib", "Classifier")
@@ -85,9 +98,12 @@ rul_model = safe_load(rul_dir, "lgbm_rul.joblib", "RUL Model")
 rul_features = safe_load(rul_dir, "rul_features.joblib", "RUL Features")
 
 # ==============================
-# FastAPI App (unchanged)
+# FastAPI App
 # ==============================
 app = FastAPI(title="EV Predictive Maintenance Inference")
+
+# Enable Prometheus metrics
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 class Payload(BaseModel):
     data: dict
@@ -98,6 +114,10 @@ def _build_row(feature_list, data):
 @app.post("/predict")
 def predict(payload: Payload):
     data = payload.data
+
+    # Increment total predictions counter
+    PREDICTIONS_TOTAL.inc()
+
     result = {}
 
     if isof is None or if_scaler is None or if_features is None:
@@ -108,10 +128,16 @@ def predict(payload: Payload):
         x_if_scaled = if_scaler.transform(x_if)
         if_pred = isof.predict(x_if_scaled)[0]
         is_anomaly = int(if_pred == -1)
+
+        # Increment anomaly counter if detected
+        if is_anomaly == 1:
+            ANOMALY_PREDICTIONS.inc()
+
     except Exception as e:
         return {"error": f"Anomaly inference error: {str(e)}"}
 
     result["IF_Anomaly"] = is_anomaly
+
     if is_anomaly == 0:
         result["status"] = "Normal - no fault detected"
         return result
@@ -155,6 +181,9 @@ def predict(payload: Payload):
 
     return result
 
+# ==============================
+# Startup
+# ==============================
 if __name__ == "__main__":
     print("\n🚀 Starting inference server...")
     print(f"   Anomaly model loaded: {bool(isof)}")
