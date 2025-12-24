@@ -1,130 +1,133 @@
 import os
 import subprocess
 import mlflow
-from mlflow.tracking import MlflowClient
-from mlflow.exceptions import RestException
+import shutil
+from pathlib import Path
+from mlflow_utils import (
+    register_anomaly_model,
+    register_classifier_model,
+    register_rul_model
+)
 
 # ==============================
 # CONFIG
 # ==============================
-MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance")
 
-SCRIPT_TIMEOUT = int(os.getenv("TRAINING_SCRIPT_TIMEOUT", "1800"))  # 0 = no timeout
-
 SCRIPTS = [
-    "src/anomaly.py",
-    "src/classifier.py",
-    "src/rul.py",
+    "src/anomaly.py",      # Must run first to generate parquet with IF_Anomaly
+    "src/classifier.py",   # Uses parquet from anomaly
+    "src/rul.py"           # Uses parquet and classifier artifacts
 ]
 
-MODEL_GROUPS = [
-    ("models/anomaly", "ev-anomaly-model", "anomaly_bundle"),
-    ("models/classifier", "ev-classifier-model", "classifier_bundle"),
-    ("models/rul", "ev-rul-model", "rul_bundle"),
-]
+MODELS_DIR = Path("models")
+MODEL_SUBDIRS = ["anomaly", "classifier", "rul"]
 
 # ==============================
 # SETUP
 # ==============================
 mlflow.set_tracking_uri(MLFLOW_URI)
 mlflow.set_experiment(EXPERIMENT_NAME)
-client = MlflowClient(tracking_uri=MLFLOW_URI)
+
+# Clean old models (DEV MODE behavior)
+if MODELS_DIR.exists():
+    print("🧹 Cleaning old models directory")
+    shutil.rmtree(MODELS_DIR)
+
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ==============================
 # HELPERS
 # ==============================
 def run_scripts_or_fail():
     for script in SCRIPTS:
-        print(f"▶ Running {script} {'(no timeout)' if SCRIPT_TIMEOUT <= 0 else f'(timeout: {SCRIPT_TIMEOUT}s)'} ...")
-        try:
-            result = subprocess.run(
-                ["python", script],
-                capture_output=True,
-                text=True,
-                timeout=SCRIPT_TIMEOUT if SCRIPT_TIMEOUT > 0 else None
-            )
-            if result.returncode == 0:
-                print(f"✅ {script} completed successfully")
-                if result.stdout.strip():
-                    print(result.stdout)
-            else:
-                print(f"❌ {script} failed (return code {result.returncode})")
-                if result.stdout:
-                    print("STDOUT:\n", result.stdout)
-                if result.stderr:
-                    print("STDERR:\n", result.stderr)
-                raise RuntimeError(f"Training failed: {script}")
-        except subprocess.TimeoutExpired:
-            print(f"⏰ {script} TIMED OUT after {SCRIPT_TIMEOUT} seconds!")
-            raise RuntimeError(f"Training timeout: {script}")
-        except Exception as e:
-            print(f"❌ Unexpected error running {script}: {e}")
-            raise
+        print(f"▶ Running {script}")
+        ret = subprocess.run(["python", script])
+        if ret.returncode != 0:
+            raise RuntimeError(f"❌ Training failed in {script}")
 
-def register_model_group(local_dir: str, model_name: str, bundle_path: str):
-    if not os.path.isdir(local_dir):
-        print(f"⚠️ Directory not found: {local_dir} → skipping {model_name}")
-        return
+def log_models():
+    """Log models as artifacts to MLflow."""
+    for subdir in MODEL_SUBDIRS:
+        path = MODELS_DIR / subdir
+        if path.exists():
+            print(f"📦 Logging {path}")
+            mlflow.log_artifacts(str(path), artifact_path=f"models/{subdir}")
+        else:
+            print(f"⚠️ Skipping missing model dir: {path}")
 
-    contents = os.listdir(local_dir)
-    print(f"📂 Found {len(contents)} files in {local_dir}: {contents}")
-
-    print(f"📌 Logging directory '{local_dir}' → artifact path '{bundle_path}'")
-    mlflow.log_artifacts(local_dir, artifact_path=bundle_path)
-
-    run_id = mlflow.active_run().info.run_id
-    source_uri = f"runs:/{run_id}/{bundle_path}"
-
+def register_models(run_id: str, initial_stage: str = "Staging"):
+    """
+    Register all models to MLflow Model Registry.
+    
+    Args:
+        run_id: MLflow run ID for the parent pipeline run
+        initial_stage: Initial stage for registered models (Staging, Production, None)
+    """
+    print("\n" + "="*80)
+    print("REGISTERING MODELS TO MLFLOW MODEL REGISTRY")
+    print("="*80)
+    
     try:
-        client.create_registered_model(model_name)
-        print(f"   Created new registered model: {model_name}")
-    except RestException as e:
-        if "RESOURCE_ALREADY_EXISTS" not in str(e):
-            raise
-
-    mv = client.create_model_version(
-        name=model_name,
-        source=source_uri,
-        run_id=run_id,
-        description=f"Bundle containing: {', '.join(contents)}"
-    )
-
-    # Set modern @production alias (used by inference server)
-    client.set_registered_model_alias(
-        name=model_name,
-        alias="production",
-        version=str(mv.version)
-    )
-
-    # Also set deprecated Production stage (for visibility in current UI "Production" column)
-    client.transition_model_version_stage(
-        name=model_name,
-        version=mv.version,
-        stage="Production",
-        archive_existing_versions=True
-    )
-
-    print(f"✅ {model_name} → version {mv.version} registered, aliased as @production, and promoted to Production stage")
+        # Register anomaly model
+        anomaly_dir = MODELS_DIR / "anomaly"
+        if anomaly_dir.exists():
+            print(f"\n📝 Registering anomaly model...")
+            register_anomaly_model(anomaly_dir, run_id=run_id, stage=initial_stage)
+        else:
+            print(f"⚠️ Anomaly model directory not found: {anomaly_dir}")
+        
+        # Register classifier model
+        classifier_dir = MODELS_DIR / "classifier"
+        if classifier_dir.exists():
+            print(f"\n📝 Registering classifier model...")
+            register_classifier_model(classifier_dir, run_id=run_id, stage=initial_stage)
+        else:
+            print(f"⚠️ Classifier model directory not found: {classifier_dir}")
+        
+        # Register RUL model
+        rul_dir = MODELS_DIR / "rul"
+        if rul_dir.exists():
+            print(f"\n📝 Registering RUL model...")
+            register_rul_model(rul_dir, run_id=run_id, stage=initial_stage)
+        else:
+            print(f"⚠️ RUL model directory not found: {rul_dir}")
+        
+        print("\n" + "="*80)
+        print("✅ All models registered successfully!")
+        print("="*80)
+        
+    except Exception as e:
+        print(f"\n❌ Error registering models: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 # ==============================
 # MAIN
 # ==============================
 if __name__ == "__main__":
-    print("🚀 Starting model training and registry pipeline...\n")
-    try:
-        with mlflow.start_run(run_name="model-training-and-registry"):
-            run_scripts_or_fail()
+    # Get initial stage from environment (default: Staging)
+    initial_stage = os.getenv("MLFLOW_MODEL_STAGE", "Staging")
+    
+    with mlflow.start_run() as run:
+        # Set tags for filtering in MLflow UI
+        dataset_name = "EV_Predictive_Maintenance_Dataset_15min"
+        mlflow.set_tag("dataset", dataset_name)
+        mlflow.set_tag("model", "ensemble")  # Pipeline includes multiple models
+        
+        mlflow.log_param("pipeline", "ev_predictive_maintenance")
+        mlflow.log_param("scripts", ",".join(SCRIPTS))
+        mlflow.log_param("model_stage", initial_stage)
 
-            print("\n📦 Registering model bundles...")
-            for local_dir, model_name, bundle_path in MODEL_GROUPS:
-                register_model_group(local_dir, model_name, bundle_path)
+        run_scripts_or_fail()
+        log_models()
+        
+        # Register models to Model Registry
+        register_models(run.info.run_id, initial_stage=initial_stage)
 
-        print("\n🎉 Pipeline completed successfully!")
-        print("   • New versions registered with full bundles")
-        print("   • @production alias set (for inference)")
-        print("   • Production stage set (visible in MLflow UI)")
-
-    except Exception as e:
-        print(f"\n💥 Pipeline failed: {e}")
-        raise
+        print("\n✅ Training pipeline completed")
+        print("🏃 Run:", run.info.run_id)
+        print(f"📦 Models registered to stage: {initial_stage}")
+        print(f"🔗 View in MLflow UI: {MLFLOW_URI}")

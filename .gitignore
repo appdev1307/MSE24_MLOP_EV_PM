@@ -3,5 +3,44 @@ venv/
 data/
 mlflow/
 mlflow/mlflow.db
-*.db
-*.pyc
+
+# Python cache / build
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+
+# Virtual env variants
+.venv/
+env/
+.env/
+
+# Tests & coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+
+# Type checking / lint
+.mypy_cache/
+.ruff_cache/
+
+# IDE / editor
+.vscode/
+.idea/
+*.code-workspace
+
+# OS / misc
+.DS_Store
+Thumbs.db
+
+# Logs / temp
+logs/
+*.log
+tmp/
+temp/

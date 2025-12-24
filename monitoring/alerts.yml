@@ -36,7 +36,11 @@ groups:
       description: 5 or more anomaly predictions in last 2 minutes.
 
   - alert: NoInferenceTraffic
-    expr: increase(inference_requests_total[5m]) == 0
+    expr: |
+      up{job="fastapi-inference"} == 1
+      and (
+        (rate(inference_requests_total[5m]) or vector(0)) == 0
+      )
     for: 5m
     labels:
       severity: info
