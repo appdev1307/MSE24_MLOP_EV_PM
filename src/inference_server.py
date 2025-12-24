@@ -32,7 +32,7 @@ def load_or_none(path):
 def reload_models():
     """Reload tất cả models từ disk."""
     global isof, if_scaler, if_features
-    global clf_model, clf_scaler, clf_features, clf_label_encoder
+    global clf_model, clf_scaler, clf_features, clf_label_encoder, clf_normal_label, clf_label_col
     global rul_model, rul_features
     
     MODEL_DIR = "models"
@@ -47,6 +47,8 @@ def reload_models():
     clf_scaler = load_or_none(f"{MODEL_DIR}/classifier/scaler.joblib")
     clf_features = load_or_none(f"{MODEL_DIR}/classifier/features.joblib")
     clf_label_encoder = load_or_none(f"{MODEL_DIR}/classifier/label_encoder.joblib")
+    clf_normal_label = load_or_none(f"{MODEL_DIR}/classifier/normal_label.joblib")
+    clf_label_col = load_or_none(f"{MODEL_DIR}/classifier/label_col.joblib")
     
     # ---- RUL Predictor ----
     rul_model = load_or_none(f"{MODEL_DIR}/rul/lgbm_rul.joblib")
@@ -64,6 +66,8 @@ clf_model = load_or_none(f"{MODEL_DIR}/classifier/classifier.joblib")
 clf_scaler = load_or_none(f"{MODEL_DIR}/classifier/scaler.joblib")
 clf_features = load_or_none(f"{MODEL_DIR}/classifier/features.joblib")
 clf_label_encoder = load_or_none(f"{MODEL_DIR}/classifier/label_encoder.joblib")
+clf_normal_label = load_or_none(f"{MODEL_DIR}/classifier/normal_label.joblib")
+clf_label_col = load_or_none(f"{MODEL_DIR}/classifier/label_col.joblib")
 
 # ---- RUL Predictor ----
 rul_model = load_or_none(f"{MODEL_DIR}/rul/lgbm_rul.joblib")
@@ -83,7 +87,7 @@ FAULT_MAP = {
 # ============================================================
 
 KAFKA_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-KAFKA_TOPIC = "ev_predictions"
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "ev_predictions")
 
 kafka_producer = None
 kafka_enabled = True
@@ -154,6 +158,44 @@ async def prometheus_middleware(request: Request, call_next):
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
+@app.get("/health")
+def health():
+    """Health check endpoint for monitoring and load balancers."""
+    health_status = {
+        "status": "healthy",
+        "services": {
+            "anomaly": isof is not None and if_scaler is not None and if_features is not None,
+            "classifier": clf_model is not None and clf_scaler is not None and clf_features is not None,
+            "rul": rul_model is not None and rul_features is not None
+        },
+        "kafka": kafka_enabled and kafka_producer is not None
+    }
+    
+    # Determine overall health
+    all_models_loaded = all(health_status["services"].values())
+    if not all_models_loaded:
+        health_status["status"] = "degraded"
+        health_status["message"] = "Some models are not loaded"
+    
+    status_code = 200 if health_status["status"] == "healthy" else 503
+    return JSONResponse(content=health_status, status_code=status_code)
+
+@app.get("/")
+def root():
+    """Root endpoint with API information."""
+    return JSONResponse(content={
+        "name": "EV Predictive Maintenance API",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/health",
+            "metrics": "/metrics",
+            "predict": "/predict",
+            "docs": "/docs",
+            "training": "/api/train",
+            "training_status": "/api/training/status"
+        }
+    })
+
 # ============================================================
 # ---------------------- SCHEMA -------------------------------
 # ============================================================
@@ -174,13 +216,28 @@ def _build_row(feature_list: List[str], input_data: Dict[str, Any]):
     return np.array([[float(input_data.get(f, 0)) for f in feature_list]])
 
 def kafka_send_prediction(data: Dict[str, Any]):
+    """Send prediction data to Kafka topic with improved error handling."""
     if not kafka_enabled or kafka_producer is None:
-        print("[WARN] Kafka disabled or not reachable; skipping send.")
-        return
+        print(f"[WARN] Kafka disabled or not reachable; skipping send to topic: {KAFKA_TOPIC}")
+        return False
+    
     try:
-        kafka_producer.produce(KAFKA_TOPIC, value=str(data))
+        import json
+        # Serialize to JSON string instead of str() for better compatibility
+        message_value = json.dumps(data)
+        kafka_producer.produce(
+            KAFKA_TOPIC, 
+            value=message_value,
+            callback=lambda err, msg: print(f"[ERROR] Kafka delivery failed: {err}") if err else None
+        )
+        # Trigger delivery callbacks
+        kafka_producer.poll(0)
+        return True
     except Exception as e:
-        print(f"[WARN] Kafka send failed (non-blocking): {e}")
+        print(f"[ERROR] Kafka send failed to topic {KAFKA_TOPIC}: {e}")
+        import traceback
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        return False
 
 # ============================================================
 # ---------------------- TRAINING FUNCTIONS --------------------
@@ -325,7 +382,10 @@ def predict(payload: Payload):
     # 1) Anomaly Detection (Isolation Forest)
     # ========================================================
     if isof is None or if_scaler is None or if_features is None:
-        return {"error": "Anomaly model/scaler/features missing. Run anomaly pipeline first."}
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Anomaly model/scaler/features missing. Run anomaly pipeline first."}
+        )
 
     try:
         x_if = _build_row(if_features, data)
@@ -333,7 +393,14 @@ def predict(payload: Payload):
         if_pred = isof.predict(x_if_scaled)[0]  # 1 normal, -1 anomaly
         is_anomaly = int(if_pred == -1)
     except Exception as e:
-        return {"error": f"Anomaly inference error: {e}"}
+        import traceback
+        error_msg = f"Anomaly inference error: {e}"
+        print(f"[ERROR] {error_msg}")
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": error_msg}
+        )
 
     result["IF_Anomaly"] = is_anomaly
 
@@ -355,18 +422,40 @@ def predict(payload: Payload):
     # 2) Fault Classification
     # ========================================================
     classifier_label = None
+    pred_code = None
     is_fault = False
 
     if clf_model and clf_scaler and clf_features:
         try:
             x_clf = _build_row(clf_features, data)
             x_clf_scaled = clf_scaler.transform(x_clf)
-            pred_code = clf_model.predict(x_clf_scaled)[0]
-            classifier_label = FAULT_MAP.get(int(pred_code), str(pred_code))
-            is_fault = True
+            pred_code = int(clf_model.predict(x_clf_scaled)[0])
+            
+            # Decode label using label_encoder if available, otherwise use FAULT_MAP
+            if clf_label_encoder:
+                try:
+                    classifier_label = clf_label_encoder.inverse_transform([pred_code])[0]
+                except Exception as decode_err:
+                    print(f"[WARN] Label decoder error for code {pred_code}: {decode_err}")
+                    classifier_label = FAULT_MAP.get(pred_code, str(pred_code))
+            else:
+                classifier_label = FAULT_MAP.get(pred_code, str(pred_code))
+            
+            # Check if prediction is a fault (not normal_label)
+            if clf_normal_label is not None:
+                is_fault = (pred_code != clf_normal_label)
+            else:
+                # Fallback: assume non-zero codes are faults
+                is_fault = (pred_code != 0)
         except Exception as e:
-            classifier_label = f"Classifier Error: {e}"
+            import traceback
+            error_msg = f"Classifier Error: {e}"
+            print(f"[ERROR] {error_msg}")
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
+            classifier_label = error_msg
+            is_fault = False  # Don't proceed with RUL if classifier fails
     else:
+        print("[WARN] Classifier model/scaler/features not available")
         classifier_label = "Classifier unavailable"
 
     result["classifier_label"] = classifier_label
@@ -378,9 +467,22 @@ def predict(payload: Payload):
     rul_value = None
     if is_fault and rul_model and rul_features:
         try:
-            x_rul = _build_row(rul_features, data)
+            # Build features for RUL
+            x_rul_list = []
+            for f in rul_features:
+                if f == clf_label_col and clf_label_col and pred_code is not None:
+                    # Use encoded prediction code from classifier
+                    x_rul_list.append(float(pred_code))
+                else:
+                    # Use feature from input data
+                    x_rul_list.append(float(data.get(f, 0.0)))
+            
+            x_rul = np.array([x_rul_list])
             rul_value = float(rul_model.predict(x_rul)[0])
-        except Exception:
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] RUL prediction failed: {e}")
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
             rul_value = None
 
     result["RUL_estimated"] = rul_value
@@ -399,17 +501,31 @@ def predict(payload: Payload):
         "host": socket.gethostname(),
         "input": payload.data,
         "prediction": {
-            "IF_Anomaly": is_anomaly,
-            "classifier_label": classifier_label,
+            "IF_Anomaly": int(is_anomaly),
+            "classifier_label": str(classifier_label) if classifier_label else None,
             "is_fault": bool(is_fault),
             "RUL_estimated": float(rul_value) if rul_value is not None else None
         }
     }
 
     if is_anomaly == 1 or is_fault:
-        kafka_send_prediction(alert_payload)
+        kafka_success = kafka_send_prediction(alert_payload)
+        if not kafka_success:
+            print(f"[WARN] Failed to send alert to Kafka, but prediction completed successfully")
 
-    return result
+    # Ensure all values in result are JSON serializable (Python native types)
+    json_result = {
+        "IF_Anomaly": int(result.get("IF_Anomaly", 0)),
+        "classifier_label": str(result.get("classifier_label")) if result.get("classifier_label") else None,
+        "is_fault": bool(result.get("is_fault", False)),
+        "RUL_estimated": float(result.get("RUL_estimated")) if result.get("RUL_estimated") is not None else None
+    }
+    
+    # Add status if present
+    if "status" in result:
+        json_result["status"] = str(result["status"])
+    
+    return json_result
 
 # ============================================================
 # ---------------------- TRAINING ENDPOINTS --------------------

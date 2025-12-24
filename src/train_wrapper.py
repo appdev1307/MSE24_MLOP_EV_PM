@@ -11,9 +11,9 @@ MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance")
 
 SCRIPTS = [
-    "src/classifier.py",
-    "src/rul.py",
-    "src/anomaly.py"
+    "src/anomaly.py",      # Must run first to generate parquet with IF_Anomaly
+    "src/classifier.py",   # Uses parquet from anomaly
+    "src/rul.py"           # Uses parquet and classifier artifacts
 ]
 
 MODELS_DIR = Path("models")
