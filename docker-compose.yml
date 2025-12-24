@@ -50,7 +50,7 @@ services:
     networks: [mlops-net]
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v3.7.0   # ← Updated to latest stable version
+    image: ghcr.io/mlflow/mlflow:v3.7.0
     depends_on:
       - minio
     environment:
@@ -64,6 +64,7 @@ services:
       --default-artifact-root s3://mlflow-artifacts/
       --host 0.0.0.0
       --port 5000
+      --allowed-hosts "*"   # ← ADD THIS LINE (allows all hosts - fine for local/dev Docker setup)
     ports:
       - "5000:5000"
     volumes:
