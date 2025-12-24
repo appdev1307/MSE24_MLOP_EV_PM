@@ -117,7 +117,7 @@ print("Saved RUL model & feature list to", MODEL_DIR)
 # MLflow logging
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
-with mlflow.start_run(run_name="rul", nested=True):
+with mlflow.start_run(run_name="rul"):
     mlflow.log_params({
         **model_params,
         "feature_count": len(features)

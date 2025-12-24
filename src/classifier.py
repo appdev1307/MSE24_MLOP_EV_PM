@@ -156,7 +156,7 @@ pd.DataFrame(conf_mat).to_csv(cm_path, index=False)
 # MLflow logging
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
-with mlflow.start_run(run_name="classifier", nested=True):
+with mlflow.start_run(run_name="classifier"):
     mlflow.log_params({
         **clf_params,
         "feature_count": len(features),

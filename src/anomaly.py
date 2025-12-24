@@ -111,7 +111,7 @@ print("IF anomaly rate:", anomaly_rate)
 # MLflow logging (separate run for anomaly training)
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
-with mlflow.start_run(run_name="anomaly", nested=True):
+with mlflow.start_run(run_name="anomaly"):
     mlflow.log_params({
         "model": "IsolationForest",
         **iso_params,
