@@ -107,7 +107,35 @@ def predict(payload: Payload):
         return {"error": "Anomaly model not available"}
 
     data = payload.data
-    X = np.array([list(data.values())], dtype=float)
+    FEATURES = [
+        "SoC",
+        "SoH",
+        "Battery_Voltage",
+        "Battery_Current",
+        "Battery_Temperature",
+        "Charge_Cycles",
+        "Motor_Temperature",
+        "Motor_Vibration",
+        "Power_Consumption",
+        "Brake_Pressure",
+        "Tire_Pressure",
+        "Ambient_Temperature",
+        "Ambient_Humidity",
+        "Load_Weight",
+        "Driving_Speed",
+        "Distance_Traveled",
+        "Idle_Time",
+        "Route_Roughness",
+        "Component_Health_Score",
+        "Failure_Probability",
+        "TTF",
+    ]
+
+    X = np.array(
+        [[float(data.get(f, 0)) for f in FEATURES]],
+        dtype=float
+    )
+
 
     is_anomaly = int(isof.predict(X)[0] == -1)
     result = {"IF_Anomaly": is_anomaly}

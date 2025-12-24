@@ -132,41 +132,26 @@ project/
 ### 2. Start the stack
 
 ```bash
-colima start
 docker compose down -v
+docker system prune -f
 docker compose pull
+
 docker compose up -d zookeeper kafka minio mlflow
 docker exec -it mse24_mlop_ev_pm-minio-1 mc alias set local http://localhost:9000 minioadmin minioadmin
 docker exec -it mse24_mlop_ev_pm-minio-1 mc mb local/mlflow-artifacts
 docker exec -it mse24_mlop_ev_pm-minio-1 mc ls local
-docker compose up trainer
+
+docker compose up --build trainer
+
 docker compose up -d fastapi-inference alert-service prometheus grafana alertmanager
+
+docker logs mse24_mlop_ev_pm-fastapi-inference-1
 docker compose logs alert-service
 
 docker compose ps
 ```
 
-### 3. Create MinIO bucket (required for MLflow)
-
-```bash
-#chmod +x scripts/setup_minio_kafka.sh
-#./scripts/setup_minio_kafka.sh
-
-
-```bash
-docker exec -it mse24_mlop_ev_pm-minio-1 mc alias set local http://localhost:9000 minioadmin minioadmin
-docker exec -it mse24_mlop_ev_pm-minio-1 mc mb local/mlflow-artifacts
-docker exec -it mse24_mlop_ev_pm-minio-1 mc ls local
-```
-
-
-### 4. Run docker to train the models
-```bash
-docker compose build --no-cache trainer
-docker compose up trainer
-```
-
-### 5. Access services
+### 3. Access services
 - **MLflow** → [http://localhost:5000](http://localhost:5000)
 - **MinIO Console** → [http://localhost:9001](http://localhost:9001)  
   - User: `minioadmin`  
