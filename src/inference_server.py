@@ -10,7 +10,7 @@ from pydantic import BaseModel
 import uvicorn
 import tempfile
 
-# Prometheus metrics
+# Prometheus instrumentation
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_client import Counter
 
@@ -37,7 +37,7 @@ MODEL_NAMES = {
 
 mlflow.set_tracking_uri(MLFLOW_URI)
 
-# Cache directory
+# Cache directory for downloaded models
 MODEL_CACHE_DIR = os.path.join(tempfile.gettempdir(), "mlflow_ev_models")
 os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
 
@@ -45,6 +45,7 @@ os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
 # Download production model (@production alias)
 # ==============================
 def download_production_model(model_name: str):
+    """Download the @production version. Files are directly in the root."""
     model_uri = f"models:/{model_name}@production"
     local_dir = os.path.join(MODEL_CACHE_DIR, model_name)
 
@@ -81,19 +82,19 @@ def safe_load(directory: str | None, filename: str, name: str):
         print(f"   Missing {name}: {filename} (not found)")
         return None
 
-# Load Anomaly
+# Load Anomaly components
 isof = safe_load(anomaly_dir, "isolation_forest.joblib", "IsolationForest")
 if_scaler = safe_load(anomaly_dir, "scaler.joblib", "Anomaly Scaler")
-if_features = safe_load(anomaly_dir, "isofeat.joblib", "Anomaly Features")  # original name
+if_features = safe_load(anomaly_dir, "isofeat.joblib", "Anomaly Features")
 
-# Load Classifier
+# Load Classifier components
 clf = safe_load(classifier_dir, "classifier.joblib", "Classifier")
 clf_scaler = safe_load(classifier_dir, "scaler.joblib", "Classifier Scaler")
 clf_features = safe_load(classifier_dir, "features.joblib", "Classifier Features")
 clf_label_encoder = safe_load(classifier_dir, "label_encoder.joblib", "Label Encoder")
 clf_normal_label = safe_load(classifier_dir, "normal_label.joblib", "Normal Label")
 
-# Load RUL
+# Load RUL components
 rul_model = safe_load(rul_dir, "lgbm_rul.joblib", "RUL Model")
 rul_features = safe_load(rul_dir, "rul_features.joblib", "RUL Features")
 
@@ -102,7 +103,7 @@ rul_features = safe_load(rul_dir, "rul_features.joblib", "RUL Features")
 # ==============================
 app = FastAPI(title="EV Predictive Maintenance Inference")
 
-# Enable Prometheus metrics
+# Enable Prometheus metrics at /metrics
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 class Payload(BaseModel):
@@ -115,11 +116,12 @@ def _build_row(feature_list, data):
 def predict(payload: Payload):
     data = payload.data
 
-    # Increment total predictions counter
+    # Increment total predictions
     PREDICTIONS_TOTAL.inc()
 
     result = {}
 
+    # 1. Anomaly Detection
     if isof is None or if_scaler is None or if_features is None:
         return {"error": "Anomaly model/scaler/features missing in @production."}
 
@@ -129,10 +131,8 @@ def predict(payload: Payload):
         if_pred = isof.predict(x_if_scaled)[0]
         is_anomaly = int(if_pred == -1)
 
-        # Increment anomaly counter if detected
         if is_anomaly == 1:
             ANOMALY_PREDICTIONS.inc()
-
     except Exception as e:
         return {"error": f"Anomaly inference error: {str(e)}"}
 
@@ -142,6 +142,7 @@ def predict(payload: Payload):
         result["status"] = "Normal - no fault detected"
         return result
 
+    # 2. Classifier
     if clf is None or clf_scaler is None or clf_features is None:
         result["classifier"] = "not available"
         return result
@@ -166,6 +167,7 @@ def predict(payload: Payload):
     is_fault = int(clf_pred) != normal_code
     result["is_fault"] = is_fault
 
+    # 3. RUL if fault
     if is_fault:
         if rul_model is None or rul_features is None:
             result["RUL"] = "not available"
