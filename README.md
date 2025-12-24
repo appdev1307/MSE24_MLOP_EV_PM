@@ -135,7 +135,14 @@ project/
 colima start
 docker compose down -v
 docker compose pull
-docker compose up
+docker compose up -d zookeeper kafka minio mlflow
+docker exec -it mse24_mlop_ev_pm-minio-1 mc alias set local http://localhost:9000 minioadmin minioadmin
+docker exec -it mse24_mlop_ev_pm-minio-1 mc mb local/mlflow-artifacts
+docker exec -it mse24_mlop_ev_pm-minio-1 mc ls local
+docker compose up trainer
+docker compose up -d fastapi-inference alert-service prometheus grafana alertmanager
+docker compose logs alert-service
+
 docker compose ps
 ```
 
@@ -147,9 +154,9 @@ docker compose ps
 
 
 ```bash
-docker exec -it minio mc alias set local http://localhost:9000 minioadmin minioadmin
-docker exec -it minio mc mb local/mlflow-artifacts
-docker exec -it minio mc ls local
+docker exec -it mse24_mlop_ev_pm-minio-1 mc alias set local http://localhost:9000 minioadmin minioadmin
+docker exec -it mse24_mlop_ev_pm-minio-1 mc mb local/mlflow-artifacts
+docker exec -it mse24_mlop_ev_pm-minio-1 mc ls local
 ```
 
 
@@ -236,5 +243,25 @@ python test_alerts.py
 - CI/CD for ML (Not Just Docker): Git push → Train → Validate → Register → Deploy
 - Reproducibility & Lineage
 
+
+## Clearn Dockers
+```bash
+docker compose down -v
+docker system prune -f
+docker compose pull
+
+docker compose up -d zookeeper kafka minio mlflow
+docker exec -it mse24_mlop_ev_pm-minio-1 mc alias set local http://localhost:9000 minioadmin minioadmin
+docker exec -it mse24_mlop_ev_pm-minio-1 mc mb local/mlflow-artifacts
+docker exec -it mse24_mlop_ev_pm-minio-1 mc ls local
+
+docker compose up --build trainer
+
+docker compose up -d fastapi-inference alert-service prometheus grafana alertmanager
+
+docker logs mse24_mlop_ev_pm-fastapi-inference-1
+docker compose logs alert-service
+
+```
 
 ```

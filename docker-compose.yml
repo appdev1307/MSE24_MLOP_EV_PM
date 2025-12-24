@@ -1,35 +1,46 @@
 version: "3.9"
 
+networks:
+  mlops-net:
+    driver: bridge
+
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
-    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    networks: [mlops-net]
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: kafka
     depends_on:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
 
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      # 🔑 FIX: dual listeners (internal Docker + external host)
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
 
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
-      - "9092:9092"
+      - "29092:29092"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "kafka-topics --bootstrap-server kafka:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [mlops-net]
 
   minio:
     image: quay.io/minio/minio:latest
-    container_name: minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -39,10 +50,10 @@ services:
       - "9001:9001"
     volumes:
       - minio-data:/data
+    networks: [mlops-net]
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.14.1
-    container_name: mlflow
     depends_on:
       - minio
     environment:
@@ -60,38 +71,46 @@ services:
       - "5000:5000"
     volumes:
       - ./mlflow:/mlflow
+    networks: [mlops-net]
 
   trainer:
     build:
       context: ./src
       dockerfile: Dockerfile
     depends_on:
-      - kafka
-      - minio
-      - mlflow
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      mlflow:
+        condition: service_started
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_EXPERIMENT: predictive-maintenance
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-      TRAINING_SCRIPTS: classifier.py,rul.py,anomaly.py
-      MODEL_GLOBS: ./models/*.joblib
     volumes:
       - ./:/workspace
     command: ["python", "src/train_wrapper.py"]
+    networks: [mlops-net]
 
   fastapi-inference:
     build:
       context: ./inference
       dockerfile: Dockerfile
     depends_on:
-      - kafka
-      - mlflow
-      - minio
+      kafka:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+      minio:
+        condition: service_started
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_EXPERIMENT: predictive-maintenance
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
@@ -108,19 +127,22 @@ services:
         "--port",
         "8000"
       ]
+    networks: [mlops-net]
 
   alert-service:
     build:
       context: ./alert_service
       dockerfile: Dockerfile
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       PRED_TOPIC: predictions
       PROM_PORT: 9101
     ports:
       - "9101:9101"
+    networks: [mlops-net]
 
   prometheus:
     image: prom/prometheus:v2.48.0
@@ -129,6 +151,7 @@ services:
       - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
     ports:
       - "9090:9090"
+    networks: [mlops-net]
 
   alertmanager:
     image: prom/alertmanager:latest
@@ -138,6 +161,7 @@ services:
       - ./monitoring/alertmanager.yml:/etc/alertmanager/config.yml:ro
     ports:
       - "9093:9093"
+    networks: [mlops-net]
 
   grafana:
     image: grafana/grafana:10.2.3
@@ -147,6 +171,7 @@ services:
       - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
+    networks: [mlops-net]
 
 volumes:
   minio-data:
