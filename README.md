@@ -132,11 +132,14 @@ project/
 ### 2. Start the stack
 
 ```bash
+colima start
 docker compose down -v
 docker system prune -f
+
 docker compose pull
 
 docker compose up -d zookeeper kafka minio mlflow
+
 docker exec -it mse24_mlop_ev_pm-minio-1 mc alias set local http://localhost:9000 minioadmin minioadmin
 docker exec -it mse24_mlop_ev_pm-minio-1 mc mb local/mlflow-artifacts
 docker exec -it mse24_mlop_ev_pm-minio-1 mc ls local
@@ -229,23 +232,13 @@ python test_alerts.py
 - Reproducibility & Lineage
 
 
-## Clearn Dockers
+## Clean Dockers
 ```bash
-docker compose down -v
-docker system prune -f
-docker compose pull
+# 1. Remove all containers (safe, skips if none)
+docker rm -f $(docker ps -a -q) 2>/dev/null || true
 
-docker compose up -d zookeeper kafka minio mlflow
-docker exec -it mse24_mlop_ev_pm-minio-1 mc alias set local http://localhost:9000 minioadmin minioadmin
-docker exec -it mse24_mlop_ev_pm-minio-1 mc mb local/mlflow-artifacts
-docker exec -it mse24_mlop_ev_pm-minio-1 mc ls local
-
-docker compose up --build trainer
-
-docker compose up -d fastapi-inference alert-service prometheus grafana alertmanager
-
-docker logs mse24_mlop_ev_pm-fastapi-inference-1
-docker compose logs alert-service
+# 2. Remove all images
+docker rmi -f $(docker images -q) 2>/dev/null || true
 
 ```
 

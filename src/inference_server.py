@@ -1,152 +1,163 @@
+# src/inference_server.py
+# FastAPI server: IsolationForest → Classifier → RUL (if fault)
+
 import os
-import time
-import socket
-import json
 import joblib
 import numpy as np
-from typing import Dict, Any
-
-from fastapi import FastAPI, Request
-from fastapi.responses import Response
-from pydantic import BaseModel
-
-from confluent_kafka import Producer
-
 import mlflow
-from mlflow.tracking import MlflowClient
+from fastapi import FastAPI
+from pydantic import BaseModel
+import uvicorn
+import tempfile
 
-# =======================
-# PROMETHEUS
-# =======================
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-
-# ============================================================
-# ---------------------- MLFLOW CONFIG ------------------------
-# ============================================================
-
+# ==============================
+# MLflow Config
+# ==============================
 MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+
+MODEL_NAMES = {
+    "anomaly": "ev-anomaly-model",
+    "classifier": "ev-classifier-model",
+    "rul": "ev-rul-model",
+}
+
 mlflow.set_tracking_uri(MLFLOW_URI)
 
-# 🔴 FIX IS HERE
-client = MlflowClient(tracking_uri=MLFLOW_URI)
+# Cache directory
+MODEL_CACHE_DIR = os.path.join(tempfile.gettempdir(), "mlflow_ev_models")
+os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
 
-CACHE_DIR = "/tmp/models"
-os.makedirs(CACHE_DIR, exist_ok=True)
+# ==============================
+# Download production model (bundle root)
+# ==============================
+def download_production_model(model_name: str):
+    """Download the @production version of a model. Returns the local directory containing the files."""
+    model_uri = f"models:/{model_name}@production"
+    local_dir = os.path.join(MODEL_CACHE_DIR, model_name)
 
-def load_joblib_from_registry(model_name: str, artifact_name: str):
-    """
-    Load raw artifact (.joblib) from MLflow Registry (Production)
-    """
-    mv = client.get_latest_versions(model_name, stages=["Production"])[0]
-    local_path = client.download_artifacts(
-        run_id=mv.run_id,
-        path=f"{model_name}/{artifact_name}",
-        dst_path=CACHE_DIR
-    )
-    return joblib.load(local_path)
+    try:
+        print(f"⬇️ Downloading {model_name}@production ...")
+        downloaded_path = mlflow.artifacts.download_artifacts(
+            artifact_uri=model_uri,
+            dst_path=local_dir
+        )
+        print(f"✅ Model downloaded to: {downloaded_path}")
+        return downloaded_path
+    except Exception as e:
+        print(f"❌ Failed to download {model_name}@production: {e}")
+        return None
 
-# ============================================================
-# ----------------------- LOAD MODELS -------------------------
-# ============================================================
+# Download all models
+print("⬇️ Downloading models from MLflow (@production)...")
+anomaly_dir = download_production_model(MODEL_NAMES["anomaly"])
+classifier_dir = download_production_model(MODEL_NAMES["classifier"])
+rul_dir = download_production_model(MODEL_NAMES["rul"])
 
-try:
-    print("✅ Loading models from MLflow Registry (Production)")
+# ==============================
+# Safe load helper
+# ==============================
+def safe_load(directory: str | None, filename: str, name: str):
+    if directory is None:
+        print(f"   Missing directory for {name}")
+        return None
+    path = os.path.join(directory, filename)
+    if os.path.exists(path):
+        print(f"   Loaded {name}: {filename}")
+        return joblib.load(path)
+    else:
+        print(f"   Missing {name}: {filename} (not found)")
+        return None
 
-    isof = load_joblib_from_registry(
-        "ev-anomaly-model", "isolation_forest.joblib"
-    )
-    clf_model = load_joblib_from_registry(
-        "ev-classifier-model", "classifier.joblib"
-    )
-    rul_model = load_joblib_from_registry(
-        "ev-rul-model", "lgbm_rul.joblib"
-    )
+# Load Anomaly
+isof = safe_load(anomaly_dir, "isolation_forest.joblib", "IsolationForest")
+if_scaler = safe_load(anomaly_dir, "scaler.joblib", "Anomaly Scaler")
+if_features = safe_load(anomaly_dir, "isofeat.joblib", "Anomaly Features")  # correct name
 
-    print("✅ Models loaded successfully")
+# Load Classifier
+clf = safe_load(classifier_dir, "classifier.joblib", "Classifier")
+clf_scaler = safe_load(classifier_dir, "scaler.joblib", "Classifier Scaler")
+clf_features = safe_load(classifier_dir, "features.joblib", "Classifier Features")
+clf_label_encoder = safe_load(classifier_dir, "label_encoder.joblib", "Label Encoder")
+clf_normal_label = safe_load(classifier_dir, "normal_label.joblib", "Normal Label")
 
-except Exception as e:
-    print(f"❌ Failed to load models from MLflow Registry: {e}")
-    isof = clf_model = rul_model = None
+# Load RUL
+rul_model = safe_load(rul_dir, "lgbm_rul.joblib", "RUL Model")
+rul_features = safe_load(rul_dir, "rul_features.joblib", "RUL Features")
 
-# ============================================================
-# ---------------------- FASTAPI APP --------------------------
-# ============================================================
-
-app = FastAPI(title="EV Predictive Maintenance Inference API")
-
-REQUEST_COUNT = Counter("inference_requests_total", "Total inference requests")
-REQUEST_LATENCY = Histogram("inference_latency_seconds", "Inference latency")
-
-@app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
-    start = time.time()
-    response = await call_next(request)
-    REQUEST_COUNT.inc()
-    REQUEST_LATENCY.observe(time.time() - start)
-    return response
-
-@app.get("/metrics")
-def metrics():
-    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-# ============================================================
-# ---------------------- SCHEMA -------------------------------
-# ============================================================
+# ==============================
+# FastAPI App (unchanged)
+# ==============================
+app = FastAPI(title="EV Predictive Maintenance Inference")
 
 class Payload(BaseModel):
-    data: Dict[str, Any]
+    data: dict
 
-# ============================================================
-# ---------------------- ENDPOINT -----------------------------
-# ============================================================
+def _build_row(feature_list, data):
+    return np.array([float(data.get(f, 0.0)) for f in feature_list]).reshape(1, -1)
 
 @app.post("/predict")
 def predict(payload: Payload):
-
-    if isof is None:
-        return {"error": "Anomaly model not available"}
-
     data = payload.data
-    FEATURES = [
-        "SoC",
-        "SoH",
-        "Battery_Voltage",
-        "Battery_Current",
-        "Battery_Temperature",
-        "Charge_Cycles",
-        "Motor_Temperature",
-        "Motor_Vibration",
-        "Power_Consumption",
-        "Brake_Pressure",
-        "Tire_Pressure",
-        "Ambient_Temperature",
-        "Ambient_Humidity",
-        "Load_Weight",
-        "Driving_Speed",
-        "Distance_Traveled",
-        "Idle_Time",
-        "Route_Roughness",
-        "Component_Health_Score",
-        "Failure_Probability",
-        "TTF",
-    ]
+    result = {}
 
-    X = np.array(
-        [[float(data.get(f, 0)) for f in FEATURES]],
-        dtype=float
-    )
+    if isof is None or if_scaler is None or if_features is None:
+        return {"error": "Anomaly model/scaler/features missing in @production."}
 
+    try:
+        x_if = _build_row(if_features, data)
+        x_if_scaled = if_scaler.transform(x_if)
+        if_pred = isof.predict(x_if_scaled)[0]
+        is_anomaly = int(if_pred == -1)
+    except Exception as e:
+        return {"error": f"Anomaly inference error: {str(e)}"}
 
-    is_anomaly = int(isof.predict(X)[0] == -1)
-    result = {"IF_Anomaly": is_anomaly}
-
+    result["IF_Anomaly"] = is_anomaly
     if is_anomaly == 0:
         result["status"] = "Normal - no fault detected"
         return result
 
-    label = int(clf_model.predict(X)[0])
-    result["classifier_label"] = label
-    result["is_fault"] = True
-    result["RUL_estimated"] = float(rul_model.predict(X)[0])
+    if clf is None or clf_scaler is None or clf_features is None:
+        result["classifier"] = "not available"
+        return result
+
+    try:
+        x_clf = _build_row(clf_features, data)
+        x_clf_scaled = clf_scaler.transform(x_clf)
+        clf_pred = clf.predict(x_clf_scaled)[0]
+        label_name = (
+            clf_label_encoder.inverse_transform([int(clf_pred)])[0]
+            if clf_label_encoder is not None else str(clf_pred)
+        )
+    except Exception as e:
+        return {"error": f"Classifier inference error: {str(e)}"}
+
+    result.update({
+        "classifier_label_code": int(clf_pred),
+        "classifier_label_name": label_name
+    })
+
+    normal_code = int(clf_normal_label) if clf_normal_label is not None else 0
+    is_fault = int(clf_pred) != normal_code
+    result["is_fault"] = is_fault
+
+    if is_fault:
+        if rul_model is None or rul_features is None:
+            result["RUL"] = "not available"
+            return result
+        try:
+            x_rul = _build_row(rul_features, data)
+            rul_pred = float(rul_model.predict(x_rul)[0])
+            result["RUL_estimated"] = rul_pred
+        except Exception as e:
+            result["RUL_error"] = str(e)
+    else:
+        result["RUL_estimated"] = "not_applicable"
 
     return result
+
+if __name__ == "__main__":
+    print("\n🚀 Starting inference server...")
+    print(f"   Anomaly model loaded: {bool(isof)}")
+    print(f"   Classifier loaded: {bool(clf)}")
+    print(f"   RUL model loaded: {bool(rul_model)}")
+    uvicorn.run("src.inference_server:app", host="0.0.0.0", port=8000, reload=False)
