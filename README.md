@@ -63,11 +63,15 @@ project/
 colima start
 docker compose down -v
 docker compose pull
-docker compose up trainer
 docker compose ps
 ```
 
 ### 3. Create MinIO bucket (required for MLflow)
+
+```bash
+chmod +x scripts/setup_minio_kafka.sh
+./scripts/setup_minio_kafka.sh
+
 
 ```bash
 docker exec -it minio mc alias set local http://localhost:9000 minioadmin minioadmin
@@ -75,16 +79,10 @@ docker exec -it minio mc mb local/mlflow-artifacts
 docker exec -it minio mc ls local
 ```
 
-Or use the helper script:
-
-```bash
-chmod +x scripts/setup_minio_kafka.sh
-./scripts/setup_minio_kafka.sh
-```
 
 ### 4. Run docker to train the models
 ```bash
-docker compose build --no-cache trainer
+##docker compose build --no-cache trainer
 docker compose up trainer
 ```
 

@@ -1,48 +1,55 @@
+version: "3.9"
+
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
     container_name: zookeeper
     environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
-    
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: kafka
-    environment:
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
-      - ALLOW_PLAINTEXT_LISTENER=yes
-    ports:
-      - "9092:9092"
     depends_on:
       - zookeeper
-   
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
 
   minio:
     image: quay.io/minio/minio:latest
     container_name: minio
     command: server /data --console-address ":9001"
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - 9000:9000
-      - 9001:9001
+      - "9000:9000"
+      - "9001:9001"
     volumes:
       - minio-data:/data
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.14.1
     container_name: mlflow
+    depends_on:
+      - minio
     environment:
-      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - AWS_DEFAULT_REGION=us-east-1
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: us-east-1
     command: >
       mlflow server
       --backend-store-uri sqlite:////mlflow/mlflow.db
@@ -51,8 +58,6 @@ services:
       --port 5000
     ports:
       - "5000:5000"
-    depends_on:
-      - minio
     volumes:
       - ./mlflow:/mlflow
 
@@ -65,58 +70,57 @@ services:
       - minio
       - mlflow
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
-      - TRAINING_SCRIPTS=classifier.py,rul.py,anomaly.py
-      - MODEL_GLOBS=./models/*.joblib
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      TRAINING_SCRIPTS: classifier.py,rul.py,anomaly.py
+      MODEL_GLOBS: ./models/*.joblib
     volumes:
       - ./:/workspace
-    command: ["python", "src/train_wrapper.py"]  
+    command: ["python", "src/train_wrapper.py"]
 
   fastapi-inference:
     build:
       context: ./inference
       dockerfile: Dockerfile
     depends_on:
+      - kafka
       - mlflow
       - minio
-      - kafka
     environment:
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
     ports:
-      - 8000:8000
+      - "8000:8000"
     volumes:
       - ./:/workspace
-    command: ["uvicorn", "src.inference_server:app", "--host", "0.0.0.0", "--port", "8000"]
+    command:
+      [
+        "uvicorn",
+        "src.inference_server:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ]
 
   alert-service:
     build:
       context: ./alert_service
       dockerfile: Dockerfile
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - PRED_TOPIC=predictions
-      - PROM_PORT=9101
     depends_on:
       - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PRED_TOPIC: predictions
+      PROM_PORT: 9101
     ports:
       - "9101:9101"
-
-  alertmanager:
-    image: prom/alertmanager:latest
-    command:
-      - '--config.file=/etc/alertmanager/config.yml'
-    volumes:
-      - ./monitoring/alertmanager.yml:/etc/alertmanager/config.yml:ro
-    ports:
-      - 9093:9093
 
   prometheus:
     image: prom/prometheus:v2.48.0
@@ -124,14 +128,23 @@ services:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
     ports:
-      - 9090:9090
+      - "9090:9090"
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    command:
+      - "--config.file=/etc/alertmanager/config.yml"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/config.yml:ro
+    ports:
+      - "9093:9093"
 
   grafana:
     image: grafana/grafana:10.2.3
     depends_on:
       - prometheus
     ports:
-      - 3000:3000
+      - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
 
