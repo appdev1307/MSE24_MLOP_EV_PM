@@ -3,3 +3,5 @@ venv/
 data/
 mlflow/
 mlflow/mlflow.db
+*.db
+*.pyc
