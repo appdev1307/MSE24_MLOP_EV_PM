@@ -157,6 +157,11 @@ pd.DataFrame(conf_mat).to_csv(cm_path, index=False)
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
 with mlflow.start_run(run_name="classifier"):
+    # Set tags for filtering in MLflow UI
+    dataset_name = BASE_CSV.stem  # e.g., "EV_Predictive_Maintenance_Dataset_15min"
+    mlflow.set_tag("dataset", dataset_name)
+    mlflow.set_tag("model", "XGBoost")
+    
     mlflow.log_params({
         **clf_params,
         "feature_count": len(features),

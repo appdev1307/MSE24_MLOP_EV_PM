@@ -9,8 +9,14 @@ from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from confluent_kafka import Producer
+import mlflow
+from src.mlflow_utils import (
+    load_model_from_registry,
+    get_model_info,
+    MODEL_NAMES
+)
 
 # =======================
 # MONITORING
@@ -26,52 +32,129 @@ from prometheus_client import (
 # ----------------------- LOAD MODELS -------------------------
 # ============================================================
 
+# MLflow configuration
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+MLFLOW_MODEL_STAGE = os.getenv("MLFLOW_MODEL_STAGE", "Production")  # Production, Staging, or None for local
+USE_MLFLOW_REGISTRY = os.getenv("USE_MLFLOW_REGISTRY", "true").lower() == "true"
+
+# Model info from registry
+model_info = {
+    "anomaly": None,
+    "classifier": None,
+    "rul": None
+}
+
 def load_or_none(path):
+    """Load model from local filesystem."""
     return joblib.load(path) if os.path.exists(path) else None
 
+def load_model_with_fallback(model_name: str, local_path: str, model_type: str = "sklearn"):
+    """
+    Load model from MLflow Registry with fallback to local filesystem.
+    
+    Args:
+        model_name: Name of the model (anomaly, classifier, rul)
+        local_path: Local path to model file
+        model_type: Type of model (sklearn, xgboost, lightgbm)
+    
+    Returns:
+        Loaded model or None
+    """
+    # Try MLflow Registry first if enabled
+    if USE_MLFLOW_REGISTRY and MLFLOW_MODEL_STAGE:
+        try:
+            mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+            model = load_model_from_registry(model_name, stage=MLFLOW_MODEL_STAGE)
+            print(f"✅ Loaded {model_name} from MLflow Registry (stage: {MLFLOW_MODEL_STAGE})")
+            
+            # Get model info
+            info = get_model_info(model_name, stage=MLFLOW_MODEL_STAGE)
+            model_info[model_name] = info
+            
+            # Extract actual model from pyfunc wrapper
+            # MLflow pyfunc models wrap the actual model
+            try:
+                if hasattr(model, "_model_impl"):
+                    impl = model._model_impl
+                    # Try different ways to extract the actual model
+                    if hasattr(impl, 'sklearn_model'):
+                        return impl.sklearn_model
+                    elif hasattr(impl, 'xgboost_model'):
+                        return impl.xgboost_model
+                    elif hasattr(impl, 'lightgbm_model'):
+                        return impl.lightgbm_model
+                    elif hasattr(impl, 'model'):
+                        return impl.model
+                    else:
+                        # Return the implementation itself
+                        return impl
+                elif hasattr(model, "predict"):
+                    # If it's already the model or has predict method, use it
+                    return model
+                else:
+                    # Last resort: return as-is (might work for some models)
+                    return model
+            except Exception as extract_error:
+                print(f"⚠️ Error extracting model from wrapper: {extract_error}")
+                # Return wrapper - will need to handle in prediction code
+                return model
+        except Exception as e:
+            print(f"⚠️ Failed to load {model_name} from MLflow Registry: {e}")
+            print(f"   Falling back to local filesystem: {local_path}")
+    
+    # Fallback to local filesystem
+    return load_or_none(local_path)
+
 def reload_models():
-    """Reload tất cả models từ disk."""
+    """Reload tất cả models từ MLflow Registry hoặc local filesystem."""
     global isof, if_scaler, if_features
     global clf_model, clf_scaler, clf_features, clf_label_encoder, clf_normal_label, clf_label_col
     global rul_model, rul_features
     
     MODEL_DIR = "models"
     
+    print("\n" + "="*80)
+    print("LOADING MODELS")
+    print("="*80)
+    print(f"MLflow Registry: {'Enabled' if USE_MLFLOW_REGISTRY else 'Disabled'}")
+    print(f"Model Stage: {MLFLOW_MODEL_STAGE if MLFLOW_MODEL_STAGE else 'Local filesystem'}")
+    print()
+    
     # ---- Anomaly (Isolation Forest) ----
-    isof = load_or_none(f"{MODEL_DIR}/anomaly/isolation_forest.joblib")
-    if_scaler = load_or_none(f"{MODEL_DIR}/anomaly/scaler.joblib")
-    if_features = load_or_none(f"{MODEL_DIR}/anomaly/isofeat.joblib")
+    print("Loading anomaly model...")
+    isof = load_model_with_fallback("anomaly", f"{MODEL_DIR}/anomaly/isolation_forest.joblib")
+    if_scaler = load_or_none(f"{MODEL_DIR}/anomaly/scaler.joblib")  # Always from local (artifact)
+    if_features = load_or_none(f"{MODEL_DIR}/anomaly/isofeat.joblib")  # Always from local (artifact)
     
     # ---- Classifier ----
-    clf_model = load_or_none(f"{MODEL_DIR}/classifier/classifier.joblib")
-    clf_scaler = load_or_none(f"{MODEL_DIR}/classifier/scaler.joblib")
+    print("Loading classifier model...")
+    clf_model = load_model_with_fallback("classifier", f"{MODEL_DIR}/classifier/classifier.joblib")
+    clf_scaler = load_or_none(f"{MODEL_DIR}/classifier/scaler.joblib")  # Always from local
     clf_features = load_or_none(f"{MODEL_DIR}/classifier/features.joblib")
     clf_label_encoder = load_or_none(f"{MODEL_DIR}/classifier/label_encoder.joblib")
     clf_normal_label = load_or_none(f"{MODEL_DIR}/classifier/normal_label.joblib")
     clf_label_col = load_or_none(f"{MODEL_DIR}/classifier/label_col.joblib")
     
     # ---- RUL Predictor ----
-    rul_model = load_or_none(f"{MODEL_DIR}/rul/lgbm_rul.joblib")
-    rul_features = load_or_none(f"{MODEL_DIR}/rul/rul_features.joblib")
+    print("Loading RUL model...")
+    rul_model = load_model_with_fallback("rul", f"{MODEL_DIR}/rul/lgbm_rul.joblib")
+    rul_features = load_or_none(f"{MODEL_DIR}/rul/rul_features.joblib")  # Always from local
+    
+    print("\n" + "="*80)
+    print("MODEL LOADING SUMMARY")
+    print("="*80)
+    print(f"Anomaly: {'✅' if isof else '❌'}")
+    print(f"Classifier: {'✅' if clf_model else '❌'}")
+    print(f"RUL: {'✅' if rul_model else '❌'}")
+    print()
 
 MODEL_DIR = "models"
 
-# ---- Anomaly (Isolation Forest) ----
-isof = load_or_none(f"{MODEL_DIR}/anomaly/isolation_forest.joblib")
-if_scaler = load_or_none(f"{MODEL_DIR}/anomaly/scaler.joblib")
-if_features = load_or_none(f"{MODEL_DIR}/anomaly/isofeat.joblib")
+# Initialize MLflow tracking URI
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
-# ---- Classifier ----
-clf_model = load_or_none(f"{MODEL_DIR}/classifier/classifier.joblib")
-clf_scaler = load_or_none(f"{MODEL_DIR}/classifier/scaler.joblib")
-clf_features = load_or_none(f"{MODEL_DIR}/classifier/features.joblib")
-clf_label_encoder = load_or_none(f"{MODEL_DIR}/classifier/label_encoder.joblib")
-clf_normal_label = load_or_none(f"{MODEL_DIR}/classifier/normal_label.joblib")
-clf_label_col = load_or_none(f"{MODEL_DIR}/classifier/label_col.joblib")
-
-# ---- RUL Predictor ----
-rul_model = load_or_none(f"{MODEL_DIR}/rul/lgbm_rul.joblib")
-rul_features = load_or_none(f"{MODEL_DIR}/rul/rul_features.joblib")
+# Load models (will try MLflow Registry first, then fallback to local)
+reload_models()
 
 # ---- Meaningful labels mapping ----
 FAULT_MAP = {
@@ -159,6 +242,35 @@ def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 @app.get("/health")
+def health():
+    """Health check endpoint với thông tin về models và MLflow Registry."""
+    health_status = {
+        "status": "healthy",
+        "services": {
+            "anomaly": isof is not None and if_scaler is not None and if_features is not None,
+            "classifier": clf_model is not None and clf_scaler is not None and clf_features is not None,
+            "rul": rul_model is not None and rul_features is not None
+        },
+        "kafka": {
+            "enabled": kafka_enabled,
+            "connected": kafka_producer is not None
+        },
+        "mlflow": {
+            "tracking_uri": MLFLOW_TRACKING_URI,
+            "registry_enabled": USE_MLFLOW_REGISTRY,
+            "model_stage": MLFLOW_MODEL_STAGE if USE_MLFLOW_REGISTRY else None,
+            "model_info": model_info
+        }
+    }
+    
+    # Determine overall health
+    all_models_loaded = all(health_status["services"].values())
+    if not all_models_loaded:
+        health_status["status"] = "degraded"
+        health_status["message"] = "Some models are not loaded"
+    
+    status_code = 200 if health_status["status"] == "healthy" else 503
+    return JSONResponse(content=health_status, status_code=status_code)
 def health():
     """Health check endpoint for monitoring and load balancers."""
     health_status = {
@@ -429,7 +541,13 @@ def predict(payload: Payload):
         try:
             x_clf = _build_row(clf_features, data)
             x_clf_scaled = clf_scaler.transform(x_clf)
-            pred_code = int(clf_model.predict(x_clf_scaled)[0])
+            # Handle both direct model and pyfunc wrapper
+            if hasattr(clf_model, 'predict'):
+                pred = clf_model.predict(x_clf_scaled)
+                pred_code = int(pred[0] if hasattr(pred, '__len__') and len(pred) > 0 else pred)
+            else:
+                # Fallback
+                pred_code = int(clf_model(x_clf_scaled)[0]) if callable(clf_model) else 0
             
             # Decode label using label_encoder if available, otherwise use FAULT_MAP
             if clf_label_encoder:
@@ -478,7 +596,13 @@ def predict(payload: Payload):
                     x_rul_list.append(float(data.get(f, 0.0)))
             
             x_rul = np.array([x_rul_list])
-            rul_value = float(rul_model.predict(x_rul)[0])
+            # Handle both direct model and pyfunc wrapper
+            if hasattr(rul_model, 'predict'):
+                rul_pred = rul_model.predict(x_rul)
+                rul_value = float(rul_pred[0] if hasattr(rul_pred, '__len__') and len(rul_pred) > 0 else rul_pred)
+            else:
+                # Fallback
+                rul_value = float(rul_model(x_rul)[0]) if callable(rul_model) else None
         except Exception as e:
             import traceback
             print(f"[ERROR] RUL prediction failed: {e}")
@@ -496,6 +620,7 @@ def predict(payload: Payload):
     # ========================================================
     # 4) Kafka Event - Only push alerts
     # ========================================================
+    # Format: Match alert_service expected format
     alert_payload = {
         "timestamp": int(time.time()),
         "host": socket.gethostname(),
@@ -504,7 +629,8 @@ def predict(payload: Payload):
             "IF_Anomaly": int(is_anomaly),
             "classifier_label": str(classifier_label) if classifier_label else None,
             "is_fault": bool(is_fault),
-            "RUL_estimated": float(rul_value) if rul_value is not None else None
+            "RUL_estimated": float(rul_value) if rul_value is not None else None,
+            "failure_prob": payload.data.get("Failure_Probability", 0.0)  # Add for alert service
         }
     }
 

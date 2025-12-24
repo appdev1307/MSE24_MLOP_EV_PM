@@ -1,0 +1,55 @@
+# Test files
+test_*.py
+check_*.py
+*_test.py
+tests/
+
+# Documentation (not needed in production containers)
+docs/
+*.md
+!README.md
+
+# Development files
+*.docx
+*.sh
+README_RUN.md
+runbook.md
+PR_*.md
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+tmp/
+temp/
+
+# Git
+.git/
+.gitignore
+
+# Data (will be mounted as volume)
+data/
+models/
+mlflow/
+

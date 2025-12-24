@@ -118,6 +118,11 @@ print("Saved RUL model & feature list to", MODEL_DIR)
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
 with mlflow.start_run(run_name="rul"):
+    # Set tags for filtering in MLflow UI
+    dataset_name = BASE_CSV.stem  # e.g., "EV_Predictive_Maintenance_Dataset_15min"
+    mlflow.set_tag("dataset", dataset_name)
+    mlflow.set_tag("model", "LightGBM")
+    
     mlflow.log_params({
         **model_params,
         "feature_count": len(features)

@@ -112,6 +112,11 @@ print("IF anomaly rate:", anomaly_rate)
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
 with mlflow.start_run(run_name="anomaly"):
+    # Set tags for filtering in MLflow UI
+    dataset_name = CSV.stem  # e.g., "EV_Predictive_Maintenance_Dataset_15min"
+    mlflow.set_tag("dataset", dataset_name)
+    mlflow.set_tag("model", "IsolationForest")
+    
     mlflow.log_params({
         "model": "IsolationForest",
         **iso_params,

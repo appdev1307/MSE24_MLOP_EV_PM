@@ -3,6 +3,11 @@ import subprocess
 import mlflow
 import shutil
 from pathlib import Path
+from mlflow_utils import (
+    register_anomaly_model,
+    register_classifier_model,
+    register_rul_model
+)
 
 # ==============================
 # CONFIG
@@ -43,6 +48,7 @@ def run_scripts_or_fail():
             raise RuntimeError(f"❌ Training failed in {script}")
 
 def log_models():
+    """Log models as artifacts to MLflow."""
     for subdir in MODEL_SUBDIRS:
         path = MODELS_DIR / subdir
         if path.exists():
@@ -51,16 +57,77 @@ def log_models():
         else:
             print(f"⚠️ Skipping missing model dir: {path}")
 
+def register_models(run_id: str, initial_stage: str = "Staging"):
+    """
+    Register all models to MLflow Model Registry.
+    
+    Args:
+        run_id: MLflow run ID for the parent pipeline run
+        initial_stage: Initial stage for registered models (Staging, Production, None)
+    """
+    print("\n" + "="*80)
+    print("REGISTERING MODELS TO MLFLOW MODEL REGISTRY")
+    print("="*80)
+    
+    try:
+        # Register anomaly model
+        anomaly_dir = MODELS_DIR / "anomaly"
+        if anomaly_dir.exists():
+            print(f"\n📝 Registering anomaly model...")
+            register_anomaly_model(anomaly_dir, run_id=run_id, stage=initial_stage)
+        else:
+            print(f"⚠️ Anomaly model directory not found: {anomaly_dir}")
+        
+        # Register classifier model
+        classifier_dir = MODELS_DIR / "classifier"
+        if classifier_dir.exists():
+            print(f"\n📝 Registering classifier model...")
+            register_classifier_model(classifier_dir, run_id=run_id, stage=initial_stage)
+        else:
+            print(f"⚠️ Classifier model directory not found: {classifier_dir}")
+        
+        # Register RUL model
+        rul_dir = MODELS_DIR / "rul"
+        if rul_dir.exists():
+            print(f"\n📝 Registering RUL model...")
+            register_rul_model(rul_dir, run_id=run_id, stage=initial_stage)
+        else:
+            print(f"⚠️ RUL model directory not found: {rul_dir}")
+        
+        print("\n" + "="*80)
+        print("✅ All models registered successfully!")
+        print("="*80)
+        
+    except Exception as e:
+        print(f"\n❌ Error registering models: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
 # ==============================
 # MAIN
 # ==============================
 if __name__ == "__main__":
+    # Get initial stage from environment (default: Staging)
+    initial_stage = os.getenv("MLFLOW_MODEL_STAGE", "Staging")
+    
     with mlflow.start_run() as run:
+        # Set tags for filtering in MLflow UI
+        dataset_name = "EV_Predictive_Maintenance_Dataset_15min"
+        mlflow.set_tag("dataset", dataset_name)
+        mlflow.set_tag("model", "ensemble")  # Pipeline includes multiple models
+        
         mlflow.log_param("pipeline", "ev_predictive_maintenance")
         mlflow.log_param("scripts", ",".join(SCRIPTS))
+        mlflow.log_param("model_stage", initial_stage)
 
         run_scripts_or_fail()
         log_models()
+        
+        # Register models to Model Registry
+        register_models(run.info.run_id, initial_stage=initial_stage)
 
-        print("✅ Training pipeline completed")
+        print("\n✅ Training pipeline completed")
         print("🏃 Run:", run.info.run_id)
+        print(f"📦 Models registered to stage: {initial_stage}")
+        print(f"🔗 View in MLflow UI: {MLFLOW_URI}")
