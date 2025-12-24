@@ -18,7 +18,12 @@ Tài liệu đầy đủ về dự án EV Predictive Maintenance MLOps.
 
 ### 🎓 Giải Thích Dự Án
 
-- **[PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md)** - Giải thích chi tiết về dự án, flow hoạt động, và kiến trúc
+- **[HIEU_HE_THONG.md](HIEU_HE_THONG.md)** ⭐ - **Giải thích chi tiết hệ thống cho người non-tech**
+  - Workflow từng bước dễ hiểu
+  - Giải thích tất cả thuật ngữ chuyên môn bằng ngôn ngữ đơn giản
+  - Ví dụ thực tế và minh họa
+  - **Khuyến nghị đọc đầu tiên nếu bạn không có background kỹ thuật!**
+- **[PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md)** - Giải thích chi tiết về dự án, flow hoạt động, và kiến trúc (kỹ thuật)
 
 ### 🧪 Testing
 
@@ -35,7 +40,10 @@ Tài liệu đầy đủ về dự án EV Predictive Maintenance MLOps.
 
 ### 🔄 Workflow
 
-- **[WORKFLOW_GUIDE.md](WORKFLOW_GUIDE.md)** - Hướng dẫn chi tiết workflow từ data đến production
+- **[WORKFLOW_GUIDE.md](WORKFLOW_GUIDE.md)** - Hướng dẫn chi tiết workflow từ data đến production (kỹ thuật)
+- **[QUICK_WORKFLOW.md](QUICK_WORKFLOW.md)** - Tóm tắt workflow và lệnh nhanh
+- **[DOCKER_WORKFLOW.md](DOCKER_WORKFLOW.md)** - Hướng dẫn Docker workflow đầy đủ
+- **[PROMETHEUS_DEBUG.md](PROMETHEUS_DEBUG.md)** - Debug guide cho Prometheus và alerts
 
 ## 🗂️ Cấu Trúc Documentation
 
@@ -55,17 +63,19 @@ docs/
 
 ## 🎯 Bắt Đầu Từ Đâu?
 
-### Nếu bạn mới bắt đầu:
+### Nếu bạn mới bắt đầu (Non-Tech):
 
-1. Đọc **[QUICK_START.md](QUICK_START.md)** để setup nhanh
-2. Xem **[SETUP_COMPLETE.md](SETUP_COMPLETE.md)** để kiểm tra setup
-3. Đọc **[USAGE_GUIDE.md](USAGE_GUIDE.md)** để học cách sử dụng
+1. **Đọc [HIEU_HE_THONG.md](HIEU_HE_THONG.md) trước** ⭐ - Hiểu hệ thống hoạt động như thế nào
+2. Đọc **[QUICK_START.md](QUICK_START.md)** để setup nhanh
+3. Xem **[SETUP_COMPLETE.md](SETUP_COMPLETE.md)** để kiểm tra setup
+4. Đọc **[USAGE_GUIDE.md](USAGE_GUIDE.md)** để học cách sử dụng
 
-### Nếu bạn muốn hiểu sâu:
+### Nếu bạn muốn hiểu sâu (Tech):
 
-1. Đọc **[PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md)** để hiểu flow hoạt động
+1. Đọc **[PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md)** hoặc **[HIEU_HE_THONG.md](HIEU_HE_THONG.md)** để hiểu flow hoạt động
 2. Xem **[SERVICES_STATUS.md](SERVICES_STATUS.md)** để hiểu các services
-3. Đọc **[TESTING.md](TESTING.md)** để hiểu về testing
+3. Đọc **[WORKFLOW_GUIDE.md](WORKFLOW_GUIDE.md)** để hiểu workflow chi tiết
+4. Đọc **[TESTING.md](TESTING.md)** để hiểu về testing
 
 ### Nếu bạn cần reference nhanh:
 

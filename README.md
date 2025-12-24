@@ -2,6 +2,7 @@
 
 **Đề tài**: Predictive Maintenance on Vehicle Telemetry Data  
 **Mục tiêu**: Xây dựng prototype MLOps cho bảo trì dự đoán xe điện với:
+
 - **Data**: Dataset Kaggle (telemetry EV)
 - **Training**: Python, XGBoost, LightGBM, MLflow
 - **Inference**: FastAPI
@@ -14,14 +15,28 @@
 ```text
 Data (Kaggle CSV)
    ↓
-Processing + Feature Engineering
+Training Pipeline (anomaly.py → classifier.py → rul.py)
+   ├── Anomaly Detection (Isolation Forest)
+   ├── Fault Classification (XGBoost với class weights)
+   └── RUL Prediction (LightGBM)
    ↓
-Anomaly (Isolation Forest) + Classifier (XGBoost) + RUL (LightGBM)
+MLflow (Tracking + Artifacts + Metrics)
    ↓
-MLflow (Tracking + Artifacts)
+FastAPI Inference API
+   ├── /predict → Anomaly → Classifier → RUL
+   ├── /health → Service status check
+   ├── /metrics → Prometheus metrics
+   └── /api/train → Trigger training
    ↓
-FastAPI Inference API  →  Kafka  →  Alert Service  →  Prometheus / Grafana
+Kafka (topic: ev_predictions) → Alert Service → Prometheus / Grafana
 ```
+
+**Training Pipeline Features**:
+
+- Reproducible với fixed random seeds
+- Class imbalance handling với class weights
+- Comprehensive metrics logging (accuracy, F1, RMSE, MAE, R²)
+- MLflow integration cho tất cả models
 
 Chi tiết workflow xem thêm trong `docs/WORKFLOW_GUIDE.md` và `docs/QUICK_WORKFLOW.md`.
 
@@ -64,14 +79,24 @@ docker compose up -d training-service
 # UI sẽ hiển thị log real-time và status
 ```
 
-**Option 2: Chạy trực tiếp qua Docker (như cũ)**
+**Option 2: Chạy trực tiếp qua Docker**
 
 ```powershell
 docker compose build trainer         # build image trainer (nếu lần đầu hoặc mới sửa code)
-docker compose up trainer            # chạy train_wrapper, train anomaly + classifier + RUL
+docker compose run --rm trainer       # chạy train_wrapper, train anomaly + classifier + RUL
 ```
 
-Sau khi chạy xong, thư mục `models/` sẽ được tạo, MLflow sẽ log các run và artifacts.
+**Training Pipeline**:
+
+1. `anomaly.py` - Train Isolation Forest, tạo parquet với IF_Anomaly labels
+2. `classifier.py` - Train XGBoost với class weights cho imbalanced data
+3. `rul.py` - Train LightGBM RUL model với encoded Maintenance_Type feature
+
+Sau khi chạy xong:
+
+- Thư mục `models/` sẽ được tạo với tất cả artifacts
+- MLflow sẽ log các runs riêng biệt cho từng model với metrics đầy đủ
+- Xem runs tại: http://localhost:5000/#/experiments/1
 
 ### 3. Khởi động / reload dịch vụ FastAPI Inference
 
@@ -82,24 +107,70 @@ docker compose restart fastapi-inference # nếu đã chạy từ trước, cầ
 
 ### 4. Truy cập các service
 
-- **Training Service UI** (MỚI): [http://localhost:8080](http://localhost:8080)  
-  - Web UI để trigger và monitor training jobs
-  - Click "Start Training" để chạy training pipeline tự động
-- **FastAPI Inference**: [http://localhost:8000/docs](http://localhost:8000/docs)  
-- **MLflow UI**: [http://localhost:5000](http://localhost:5000)  
-- **MinIO Console**: [http://localhost:9001](http://localhost:9001)  
-  - User: `minioadmin`, Password: `minioadmin`
-- **Prometheus**: [http://localhost:9090](http://localhost:9090)  
-- **Grafana**: [http://localhost:3000](http://localhost:3000)  
-- **Alertmanager**: [http://localhost:9093](http://localhost:9093)
+#### API Endpoints
 
-**Khuyến nghị cho người mới**: Bắt đầu với **Training Service UI** để train models, sau đó mở **FastAPI docs** và **MLflow UI** để test và xem kết quả.
+- **FastAPI Root**: [http://localhost:8000/](http://localhost:8000/)
+  - Thông tin API và danh sách endpoints
+- **FastAPI Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+  - Swagger UI để test API
+- **Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
+  - Kiểm tra trạng thái models và services
+- **Metrics**: [http://localhost:8000/metrics](http://localhost:8000/metrics)
+  - Prometheus metrics endpoint
+
+#### Training & MLflow
+
+- **Training Service UI**: [http://localhost:8080](http://localhost:8080) (nếu có)
+  - Web UI để trigger và monitor training jobs
+- **MLflow UI**: [http://localhost:5000](http://localhost:5000)
+  - Xem training runs, metrics, và artifacts
+  - Experiment: `predictive-maintenance`
+
+#### Monitoring & Storage
+
+- **Prometheus**: [http://localhost:9090](http://localhost:9090)
+  - Query metrics và xem alerts
+- **Grafana**: [http://localhost:3000](http://localhost:3000)
+  - Username: `admin`, Password: `admin` (lần đầu đăng nhập)
+  - Prometheus datasource đã được tự động cấu hình
+- **Alertmanager**: [http://localhost:9093](http://localhost:9093)
+  - Quản lý alerts và notifications
+- **MinIO Console**: [http://localhost:9001](http://localhost:9001)
+  - User: `minioadmin`, Password: `minioadmin`
+
+**Khuyến nghị cho người mới**: Bắt đầu với **Training Service UI** hoặc `docker compose up trainer` để train models, sau đó mở **FastAPI docs** và **MLflow UI** để test và xem kết quả.
 
 ---
 
+## 🔌 API Endpoints
+
+### Core Endpoints
+
+- **GET `/`** - Root endpoint với thông tin API và danh sách endpoints
+- **GET `/health`** - Health check endpoint
+  - Trả về status của models và services
+  - Status codes: `200` (healthy), `503` (degraded)
+- **GET `/metrics`** - Prometheus metrics endpoint
+  - Format: Prometheus text format
+  - Metrics: `inference_requests_total`, `inference_request_latency_seconds`, `anomaly_predictions_total`
+- **POST `/predict`** - Inference endpoint (xem chi tiết bên dưới)
+
+### Training Endpoints
+
+- **POST `/api/train`** - Trigger training pipeline
+  - Body: `{"force": false, "rebuild": true}`
+- **GET `/api/training/status`** - Lấy training status
+- **GET `/api/training/logs`** - Lấy training logs
+- **POST `/api/models/reload`** - Reload models từ disk
+
+### Documentation
+
+- **GET `/docs`** - Swagger UI documentation
+- **GET `/redoc`** - ReDoc documentation
+
 ## 🧪 Gửi request test tới API `/predict`
 
-1. Mở [http://localhost:8000/docs](http://localhost:8000/docs) → chọn **POST /predict** → **Try it out**.  
+1. Mở [http://localhost:8000/docs](http://localhost:8000/docs) → chọn **POST /predict** → **Try it out**.
 2. Dán payload mẫu sau (có thể chỉnh số liệu):
 
 ```json
@@ -138,17 +209,25 @@ docker compose restart fastapi-inference # nếu đã chạy từ trước, cầ
 ```
 
 Kết quả trả về sẽ gồm:
-- `IF_Anomaly`: 0/1 – có bất thường hay không.
-- `classifier_label`: loại lỗi dự đoán (fault type).
-- `RUL_estimated`: ước lượng tuổi thọ còn lại.
 
-Mỗi request cũng sẽ được đẩy vào Kafka → Alert Service → Prometheus (bạn có thể xem metric trong Prometheus/Grafana).
+- `IF_Anomaly`: 0/1 – có bất thường hay không (từ Isolation Forest + rule-based override)
+- `classifier_label`: loại lỗi dự đoán (fault type từ XGBoost classifier)
+- `is_fault`: boolean – có phải lỗi hay không (dựa trên normal_label)
+- `RUL_estimated`: ước lượng tuổi thọ còn lại (từ LightGBM, chỉ khi có fault)
+- `status`: "Normal - no fault detected" (nếu không có anomaly)
+
+**Lưu ý**:
+
+- Mỗi request được track trong Prometheus metrics (`/metrics` endpoint)
+- Các anomaly/fault predictions được gửi vào Kafka topic `ev_predictions` → Alert Service → Prometheus
+- Bạn có thể xem metrics trong Prometheus/Grafana và alerts trong Alertmanager
 
 ---
 
 ## 🧑‍💻 Chạy local không dùng Docker (tùy chọn cho dev)
 
 Nếu bạn muốn chạy mọi thứ thuần Python trên máy local (không Docker), xem file `README_RUN.md`:
+
 - Tạo venv, `pip install -r requirements.txt`
 - Chạy lần lượt:
   - `python src/anomaly.py`
@@ -158,19 +237,67 @@ Nếu bạn muốn chạy mọi thứ thuần Python trên máy local (không Do
 - Sau đó test API tại [http://localhost:8000/docs](http://localhost:8000/docs).
 
 Docker vẫn được khuyến nghị cho người mới vì:
-- Không cần tự cài Kafka, Prometheus, Grafana, MinIO.  
+
+- Không cần tự cài Kafka, Prometheus, Grafana, MinIO.
 - Môi trường đồng nhất với CI/CD.
 
 ---
 
+## 📊 Monitoring & Metrics
+
+### Prometheus Metrics
+
+FastAPI expose các metrics sau tại `/metrics`:
+
+- `inference_requests_total` - Tổng số requests
+- `inference_request_latency_seconds` - Histogram latency (có thể tính p50, p95, p99)
+- `anomaly_predictions_total` - Tổng số anomaly predictions
+
+### Grafana Dashboards
+
+Grafana đã được tự động cấu hình với:
+
+- Prometheus datasource (tự động connect)
+- Dashboard provisioning (tự động load dashboards từ `monitoring/grafana/dashboards/`)
+
+Sau khi đăng nhập Grafana, bạn có thể:
+
+- Tạo dashboard mới với các queries từ Prometheus
+- Sử dụng dashboard mẫu: "EV Predictive Maintenance - Inference Metrics"
+- Query ví dụ:
+  ```promql
+  rate(inference_requests_total[1m])
+  histogram_quantile(0.95, rate(inference_request_latency_seconds_bucket[5m]))
+  rate(anomaly_predictions_total[5m])
+  ```
+
+### Alerts
+
+Prometheus alerts được cấu hình trong `monitoring/alerts.yml`:
+
+- `FastAPIInferenceDown` - Service down detection
+- `HighInferenceLatency` - p95 latency > 500ms
+- `HighAnomalyRate` - 5+ anomalies trong 2 phút
+- `NoInferenceTraffic` - Không có traffic trong 5 phút
+
+Xem alerts tại: http://localhost:9090/alerts
+
 ## 📚 Tài liệu chi tiết
 
+- **`docs/HIEU_HE_THONG.md`** ⭐ – **Giải thích chi tiết hệ thống cho người non-tech**
+  - Workflow từng bước dễ hiểu
+  - Giải thích tất cả thuật ngữ chuyên môn
+  - Ví dụ thực tế và minh họa
+  - **Khuyến nghị đọc đầu tiên nếu bạn mới bắt đầu!**
 - `docs/README.md` – Mục lục tài liệu.
-- `docs/WORKFLOW_GUIDE.md` – Giải thích workflow 9 bước chi tiết.
+- `docs/WORKFLOW_GUIDE.md` – Giải thích workflow 9 bước chi tiết (kỹ thuật).
 - `docs/QUICK_WORKFLOW.md` – Tóm tắt workflow và lệnh nhanh.
 - `docs/DOCKER_WORKFLOW.md` – Hướng dẫn Docker workflow đầy đủ.
+- `docs/PROMETHEUS_DEBUG.md` – Debug guide cho Prometheus và alerts.
 
 Nếu bạn là người mới, lộ trình đề xuất:
-1. Đọc phần **“Cách chạy bằng Docker”** ở trên và chạy thử.  
-2. Mở MLflow/Grafana để quan sát kết quả.  
-3. Khi đã quen flow, đọc sâu hơn `docs/WORKFLOW_GUIDE.md` để hiểu kiến trúc MLOps.  
+
+1. Đọc phần **"Cách chạy bằng Docker"** ở trên và chạy thử.
+2. Mở MLflow/Grafana để quan sát kết quả.
+3. Test API qua `/docs` và kiểm tra metrics tại `/metrics`.
+4. Khi đã quen flow, đọc sâu hơn `docs/WORKFLOW_GUIDE.md` để hiểu kiến trúc MLOps.
