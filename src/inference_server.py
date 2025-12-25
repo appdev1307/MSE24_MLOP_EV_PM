@@ -33,7 +33,7 @@ from prometheus_client import (
 # ============================================================
 
 # MLflow configuration
-MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:6969")
 MLFLOW_MODEL_STAGE = os.getenv("MLFLOW_MODEL_STAGE", "Production")  # Production, Staging, or None for local
 USE_MLFLOW_REGISTRY = os.getenv("USE_MLFLOW_REGISTRY", "true").lower() == "true"
 

@@ -154,7 +154,7 @@ cm_path = os.path.join(MODEL_DIR, "confusion_matrix_classifier.csv")
 pd.DataFrame(conf_mat).to_csv(cm_path, index=False)
 
 # MLflow logging
-mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:6969"))
 mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
 with mlflow.start_run(run_name="classifier"):
     # Set tags for filtering in MLflow UI

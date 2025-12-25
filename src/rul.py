@@ -115,7 +115,7 @@ joblib.dump(features, os.path.join(MODEL_DIR, "rul_features.joblib"))
 print("Saved RUL model & feature list to", MODEL_DIR)
 
 # MLflow logging
-mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:6969"))
 mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
 with mlflow.start_run(run_name="rul"):
     # Set tags for filtering in MLflow UI

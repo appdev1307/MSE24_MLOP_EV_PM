@@ -96,7 +96,7 @@ Sau khi chạy xong:
 
 - Thư mục `models/` sẽ được tạo với tất cả artifacts
 - MLflow sẽ log các runs riêng biệt cho từng model với metrics đầy đủ
-- Xem runs tại: http://localhost:5000/#/experiments/1
+- Xem runs tại: http://localhost:6969/#/experiments/1
 
 ### 3. Khởi động / reload dịch vụ FastAPI Inference
 
@@ -122,7 +122,7 @@ docker compose restart fastapi-inference # nếu đã chạy từ trước, cầ
 
 - **Training Service UI**: [http://localhost:8080](http://localhost:8080) (nếu có)
   - Web UI để trigger và monitor training jobs
-- **MLflow UI**: [http://localhost:5000](http://localhost:5000)
+- **MLflow UI**: [http://localhost:6969](http://localhost:6969)
   - Xem training runs, metrics, và artifacts
   - Experiment: `predictive-maintenance`
 
