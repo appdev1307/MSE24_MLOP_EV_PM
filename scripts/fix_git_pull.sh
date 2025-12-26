@@ -43,11 +43,26 @@ if [ -n "$(git status --porcelain)" ]; then
     fi
 fi
 
+# Kiểm tra và fix unfinished merge
+if [ -f .git/MERGE_HEAD ]; then
+    echo ""
+    echo "⚠️  Found unfinished merge. Aborting..."
+    git merge --abort 2>/dev/null || true
+    echo "✅ Unfinished merge aborted"
+fi
+
 # Clean up any vim swap files that might cause issues
 echo ""
 echo "🧹 Cleaning up any vim swap files..."
 find .git -name "*.swp" -type f -delete 2>/dev/null || true
 find .git -name ".*.swp" -type f -delete 2>/dev/null || true
+
+# Clean up merge state files
+echo "🧹 Cleaning up merge state files..."
+rm -f .git/MERGE_HEAD 2>/dev/null || true
+rm -f .git/CHERRY_PICK_HEAD 2>/dev/null || true
+rm -f .git/REBASE_HEAD 2>/dev/null || true
+rm -f .git/MERGE_MSG 2>/dev/null || true
 
 # Pull code (sử dụng --no-edit để tránh mở editor)
 echo ""

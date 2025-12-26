@@ -319,7 +319,8 @@ docker compose build
 docker compose up -d
 ```
 
-**Lưu ý**: 
+**Lưu ý**:
+
 - Nếu gặp lỗi "divergent branches", xem hướng dẫn trong `docs/GIT_PULL_ON_VPS.md`
 - Nếu gặp vim swap file error, chạy: `./scripts/fix_vim_swap.sh`
 
