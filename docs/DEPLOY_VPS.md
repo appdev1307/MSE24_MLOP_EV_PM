@@ -323,6 +323,7 @@ docker compose up -d
 
 - Nếu gặp lỗi "divergent branches", xem hướng dẫn trong `docs/GIT_PULL_ON_VPS.md`
 - Nếu gặp vim swap file error, chạy: `./scripts/fix_vim_swap.sh`
+- Nếu gặp "unfinished merge", chạy: `./scripts/fix_unfinished_merge.sh`
 
 ## 🔍 Troubleshooting
 
