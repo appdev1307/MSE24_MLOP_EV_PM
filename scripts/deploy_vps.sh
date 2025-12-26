@@ -151,7 +151,29 @@ docker compose build
 echo ""
 echo "🚀 Starting services..."
 
-# Start services in detached mode
+# Start services in detached mode (start MinIO first)
+docker compose up -d minio
+
+# Wait for MinIO to be ready
+echo ""
+echo "⏳ Waiting for MinIO to start..."
+sleep 5
+
+# Create MinIO bucket for MLflow artifacts
+echo "📦 Creating MinIO bucket for MLflow artifacts..."
+if docker compose exec -T minio mc alias set local http://localhost:9000 minioadmin minioadmin 2>/dev/null; then
+    docker compose exec -T minio mc mb local/mlflow-artifacts 2>/dev/null || echo -e "${YELLOW}⚠️  Bucket may already exist${NC}"
+    echo -e "${GREEN}✅ MinIO bucket created${NC}"
+else
+    echo -e "${YELLOW}⚠️  Could not create bucket automatically. You may need to create it manually:${NC}"
+    echo "   1. Go to http://$(hostname -I | awk '{print $1}'):9001"
+    echo "   2. Login with minioadmin/minioadmin"
+    echo "   3. Create bucket named 'mlflow-artifacts'"
+fi
+
+# Start all other services
+echo ""
+echo "🚀 Starting all services..."
 docker compose up -d
 
 # Wait for services to be ready

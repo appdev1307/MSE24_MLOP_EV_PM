@@ -323,6 +323,57 @@ curl http://localhost:9000
 
 ---
 
+### MinIO Bucket không tồn tại (NoSuchBucket)
+
+**Lỗi**: 
+```
+An error occurred (NoSuchBucket) when calling the PutObject operation: 
+The specified bucket does not exist
+```
+
+**Nguyên nhân**: Bucket `mlflow-artifacts` chưa được tạo trong MinIO.
+
+**Giải pháp 1: Sử dụng script tự động (Khuyến nghị)**
+
+```bash
+chmod +x scripts/create_minio_bucket.sh
+./scripts/create_minio_bucket.sh
+```
+
+**Giải pháp 2: Tạo bucket thủ công qua CLI**
+
+```bash
+# Đảm bảo MinIO đang chạy
+docker compose up -d minio
+sleep 5
+
+# Set alias
+docker compose exec minio mc alias set local http://localhost:9000 minioadmin minioadmin
+
+# Tạo bucket
+docker compose exec minio mc mb local/mlflow-artifacts
+
+# Kiểm tra
+docker compose exec minio mc ls local
+```
+
+**Giải pháp 3: Tạo qua MinIO Console**
+
+1. Mở browser: `http://YOUR_VPS_IP:9001`
+2. Login với `minioadmin` / `minioadmin`
+3. Click "Create Bucket"
+4. Đặt tên: `mlflow-artifacts`
+5. Click "Create Bucket"
+
+**Kiểm tra bucket đã tạo**:
+```bash
+docker compose exec minio mc ls local
+```
+
+Bạn sẽ thấy `mlflow-artifacts` trong danh sách.
+
+---
+
 ### Models không load được từ Registry
 
 **Lỗi**: `Failed to load model from MLflow Registry`
