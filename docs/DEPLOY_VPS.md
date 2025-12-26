@@ -303,13 +303,22 @@ docker compose down -v
 ### Update code
 
 ```bash
+# Cấu hình Git pull strategy (chỉ cần làm 1 lần)
+git config pull.rebase false
+
 # Pull code mới
 git pull origin main
+
+# Hoặc sử dụng script tự động
+chmod +x scripts/fix_git_pull.sh
+./scripts/fix_git_pull.sh
 
 # Rebuild và restart
 docker compose build
 docker compose up -d
 ```
+
+**Lưu ý**: Nếu gặp lỗi "divergent branches", xem hướng dẫn trong `docs/GIT_PULL_ON_VPS.md`
 
 ## 🔍 Troubleshooting
 
