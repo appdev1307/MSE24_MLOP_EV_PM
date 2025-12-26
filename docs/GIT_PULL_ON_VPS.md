@@ -4,7 +4,28 @@ Nếu bạn gặp lỗi khi pull code trên VPS do có local changes, hãy làm 
 
 ## 🔍 Vấn đề thường gặp
 
+### 1. Divergent branches
+
 Khi pull code trên VPS, bạn có thể gặp lỗi:
+```
+hint: You have divergent branches and need to specify how to reconcile them.
+fatal: Need to specify how to reconcile divergent branches.
+```
+
+**Giải pháp nhanh**:
+```bash
+# Cấu hình Git để merge khi pull (khuyến nghị)
+git config pull.rebase false
+
+# Hoặc chỉ cho repo này
+git config --local pull.rebase false
+
+# Sau đó pull lại
+git pull origin main
+```
+
+### 2. Local changes conflict
+
 ```
 error: Your local changes to the following files would be overwritten by merge
 ```
@@ -95,34 +116,23 @@ git status
 git pull origin main
 ```
 
-### Sử dụng script helper
+### Sử dụng script helper (Khuyến nghị)
 
-Tạo script `pull_safe.sh`:
-
-```bash
-#!/bin/bash
-# Script để pull code an toàn trên VPS
-
-echo "🔄 Pulling code safely..."
-
-# Stash any local changes
-git stash
-
-# Pull latest code
-git pull origin main
-
-# Clean up ignored files
-git clean -fd
-
-echo "✅ Done!"
-```
-
-Cấp quyền và chạy:
+Script `fix_git_pull.sh` đã được tạo sẵn:
 
 ```bash
-chmod +x pull_safe.sh
-./pull_safe.sh
+# Cấp quyền
+chmod +x scripts/fix_git_pull.sh
+
+# Chạy script
+./scripts/fix_git_pull.sh
 ```
+
+Script này sẽ:
+- ✅ Cấu hình Git pull strategy
+- ✅ Tự động stash local changes nếu cần
+- ✅ Pull code mới nhất
+- ✅ Hướng dẫn restore stashed changes nếu có
 
 ## 📝 Files có thể gây conflict
 
