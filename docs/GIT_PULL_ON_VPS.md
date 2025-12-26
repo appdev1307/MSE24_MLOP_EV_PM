@@ -7,12 +7,14 @@ Nếu bạn gặp lỗi khi pull code trên VPS do có local changes, hãy làm 
 ### 1. Divergent branches
 
 Khi pull code trên VPS, bạn có thể gặp lỗi:
+
 ```
 hint: You have divergent branches and need to specify how to reconcile them.
 fatal: Need to specify how to reconcile divergent branches.
 ```
 
 **Giải pháp nhanh**:
+
 ```bash
 # Cấu hình Git để merge khi pull (khuyến nghị)
 git config pull.rebase false
@@ -97,6 +99,7 @@ git pull origin main
 ### Đảm bảo .gitignore đã được cập nhật
 
 File `.gitignore` đã được cập nhật để ignore:
+
 - `models/` - Model files
 - `data/` - Data files (trừ dataset source)
 - `mlflow/` - MLflow database
@@ -129,6 +132,7 @@ chmod +x scripts/fix_git_pull.sh
 ```
 
 Script này sẽ:
+
 - ✅ Cấu hình Git pull strategy
 - ✅ Tự động stash local changes nếu cần
 - ✅ Pull code mới nhất
@@ -157,17 +161,20 @@ git push origin main
 ## 💡 Best Practices
 
 1. **Luôn kiểm tra trước khi pull**:
+
    ```bash
    git status
    ```
 
 2. **Stash thay đổi không quan trọng**:
+
    ```bash
    git stash
    git pull origin main
    ```
 
 3. **Không commit files được ignore**:
+
    - Models, data, cache files sẽ được tạo lại khi chạy training
    - Không cần commit chúng
 
@@ -180,6 +187,7 @@ git push origin main
 ### Lỗi: "Found a swap file" khi pull
 
 Khi Git cố mở vim để tạo merge commit, bạn có thể gặp:
+
 ```
 E325: ATTENTION
 Found a swap file by the name ".../.MERGE_MSG.swp"
@@ -215,6 +223,59 @@ git config --global core.editor "nano"
 git config --global core.mergeoptions "--no-edit"
 ```
 
+## 🆘 Unfinished Merge Error
+
+### Lỗi: "You have not concluded your merge (MERGE_HEAD exists)"
+
+Khi có một merge đang dang dở, bạn sẽ gặp:
+```
+error: You have not concluded your merge (MERGE_HEAD exists).
+hint: Please, commit your changes before merging.
+fatal: Exiting because of unfinished merge.
+```
+
+**Giải pháp nhanh**:
+
+```bash
+# Cách 1: Abort merge (khuyến nghị nếu không cần giữ merge)
+git merge --abort
+git pull origin main --no-edit
+
+# Cách 2: Complete merge (nếu muốn giữ merge)
+git status  # Xem conflicts
+# Resolve conflicts nếu có, sau đó:
+git add .
+git commit --no-edit
+git pull origin main
+
+# Cách 3: Sử dụng script tự động
+chmod +x scripts/fix_unfinished_merge.sh
+./scripts/fix_unfinished_merge.sh
+
+# Cách 4: Reset về remote (mất tất cả local changes)
+git merge --abort
+git reset --hard origin/main
+git pull origin main
+```
+
+**Các file merge state có thể tồn tại**:
+- `.git/MERGE_HEAD` - Merge đang dang dở
+- `.git/CHERRY_PICK_HEAD` - Cherry-pick đang dang dở
+- `.git/REBASE_HEAD` - Rebase đang dang dở
+
+**Xóa tất cả merge states**:
+```bash
+# Xóa tất cả merge states
+rm -f .git/MERGE_HEAD
+rm -f .git/CHERRY_PICK_HEAD
+rm -f .git/REBASE_HEAD
+rm -f .git/MERGE_MSG
+rm -f .git/MERGE_MODE
+
+# Sau đó pull lại
+git pull origin main --no-edit
+```
+
 ## 🆘 Nếu vẫn gặp vấn đề
 
 1. Kiểm tra `.gitignore` đã được cập nhật chưa
@@ -222,4 +283,4 @@ git config --global core.mergeoptions "--no-edit"
 3. Backup files quan trọng trước khi reset
 4. Xem logs: `git log --oneline -5`
 5. Nếu gặp vim swap file: Xem phần trên
-
+6. Nếu gặp unfinished merge: Xem phần trên
