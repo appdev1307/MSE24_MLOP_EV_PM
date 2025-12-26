@@ -132,6 +132,7 @@ Tại thư mục dự án:
 
 ```powershell
 cd D:\code\MSE24_MLOP_EV_PM
+colima start
 docker compose up -d
 ```
 
