@@ -35,6 +35,7 @@ git --version
 ### Kiểm tra ports cần thiết
 
 Các ports sau sẽ được sử dụng:
+
 - `2181` - Zookeeper
 - `9092` - Kafka
 - `9000` - MinIO API
@@ -81,6 +82,7 @@ ls -lh src/data/EV_Predictive_Maintenance_Dataset_15min.csv
 ```
 
 Nếu chưa có dataset, bạn cần:
+
 1. Download từ Kaggle
 2. Hoặc sử dụng script download (nếu có quyền truy cập)
 
@@ -115,6 +117,7 @@ chmod +x scripts/download_dataset.sh
 ```
 
 Script sẽ tự động:
+
 - ✅ Kiểm tra prerequisites
 - ✅ Kiểm tra dataset
 - ✅ Kiểm tra ports
@@ -138,10 +141,24 @@ docker compose build fastapi-inference
 docker compose build alert-service
 ```
 
-### 6.2. Start services
+### 6.2. Start services và tạo MinIO bucket
 
 ```bash
-# Start tất cả services
+# Start MinIO trước
+docker compose up -d minio
+
+# Đợi MinIO sẵn sàng (5-10 giây)
+sleep 5
+
+# Tạo bucket cho MLflow artifacts (QUAN TRỌNG!)
+chmod +x scripts/create_minio_bucket.sh
+./scripts/create_minio_bucket.sh
+
+# Hoặc tạo bucket thủ công:
+docker compose exec minio mc alias set local http://localhost:9000 minioadmin minioadmin
+docker compose exec minio mc mb local/mlflow-artifacts
+
+# Start tất cả services còn lại
 # Nếu gặp "permission denied", thử:
 # - Thêm user vào docker group (xem Troubleshooting)
 # - Hoặc dùng: sudo docker compose up -d
@@ -172,6 +189,7 @@ docker compose run --rm trainer
 ```
 
 Quá trình training sẽ:
+
 1. Train Anomaly Detection model (Isolation Forest)
 2. Train Classifier model (XGBoost)
 3. Train RUL Prediction model (LightGBM)
@@ -420,18 +438,46 @@ ls -la src/data/
 # Download lại dataset nếu cần
 ```
 
+### MinIO Bucket không tồn tại (NoSuchBucket)
+
+**Lỗi**: `An error occurred (NoSuchBucket) when calling the PutObject operation`
+
+**Nguyên nhân**: Bucket `mlflow-artifacts` chưa được tạo trong MinIO.
+
+**Giải pháp**:
+
+```bash
+# Cách 1: Sử dụng script tự động (Khuyến nghị)
+chmod +x scripts/create_minio_bucket.sh
+./scripts/create_minio_bucket.sh
+
+# Cách 2: Tạo bucket thủ công
+docker compose exec minio mc alias set local http://localhost:9000 minioadmin minioadmin
+docker compose exec minio mc mb local/mlflow-artifacts
+
+# Cách 3: Tạo qua MinIO Console
+# 1. Mở http://YOUR_VPS_IP:9001
+# 2. Login với minioadmin/minioadmin
+# 3. Click "Create Bucket"
+# 4. Đặt tên: mlflow-artifacts
+# 5. Click "Create Bucket"
+
+# Kiểm tra bucket đã tạo
+docker compose exec minio mc ls local
+```
+
 ## 📡 Access URLs sau khi deploy
 
 Sau khi deploy thành công, truy cập các services:
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| FastAPI API | `http://YOUR_VPS_IP:8000` | - |
-| FastAPI Docs | `http://YOUR_VPS_IP:8000/docs` | - |
-| MLflow UI | `http://YOUR_VPS_IP:5000` | - |
-| Grafana | `http://YOUR_VPS_IP:3000` | admin/admin |
-| Prometheus | `http://YOUR_VPS_IP:9090` | - |
-| MinIO Console | `http://YOUR_VPS_IP:9001` | minioadmin/minioadmin |
+| Service       | URL                            | Credentials           |
+| ------------- | ------------------------------ | --------------------- |
+| FastAPI API   | `http://YOUR_VPS_IP:8000`      | -                     |
+| FastAPI Docs  | `http://YOUR_VPS_IP:8000/docs` | -                     |
+| MLflow UI     | `http://YOUR_VPS_IP:5000`      | -                     |
+| Grafana       | `http://YOUR_VPS_IP:3000`      | admin/admin           |
+| Prometheus    | `http://YOUR_VPS_IP:9090`      | -                     |
+| MinIO Console | `http://YOUR_VPS_IP:9001`      | minioadmin/minioadmin |
 
 ## 🔐 Bảo mật (Quan trọng)
 
@@ -475,8 +521,8 @@ Chỉ expose các ports cần thiết ra internet. Các services internal (Kafka
 ## 🆘 Hỗ trợ
 
 Nếu gặp vấn đề, kiểm tra:
+
 1. Logs của services: `docker compose logs`
 2. System resources: `htop`, `df -h`, `free -h`
 3. Network connectivity: `ping`, `curl`
 4. Docker daemon: `docker info`
-
