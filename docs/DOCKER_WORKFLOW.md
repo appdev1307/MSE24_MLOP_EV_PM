@@ -26,7 +26,7 @@ Với Docker, bạn có thể thực hiện toàn bộ workflow mà **không c�
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Stage 5-6: Experiments → Metrics                          │
-│  ✅ MLflow UI: Xem trên browser (http://localhost:5000)    │
+│  ✅ MLflow UI: Xem trên browser (http://localhost:6969)    │
 └───────────────────────┬─────────────────────────────────────┘
                         │
                         ▼
@@ -105,7 +105,7 @@ docker compose run --rm trainer python src/rul.py
 **Xem trên MLflow UI:**
 
 ```
-http://localhost:5000
+http://localhost:6969
 ```
 
 **Hoặc query qua Python trong container:**
@@ -116,7 +116,7 @@ docker compose run --rm trainer python -c "
 import mlflow
 from mlflow.tracking import MlflowClient
 
-client = MlflowClient('http://mlflow:5000')
+client = MlflowClient('http://mlflow:6969')
 experiment = client.get_experiment_by_name('predictive-maintenance')
 runs = client.search_runs([experiment.experiment_id], order_by=['metrics.f1_score DESC'])
 
@@ -131,7 +131,7 @@ for run in runs[:5]:
 
 **Option 1: Qua MLflow UI (Khuyến nghị)**
 
-1. Mở http://localhost:5000
+1. Mở http://localhost:6969
 2. Vào experiment "predictive-maintenance"
 3. So sánh các runs
 4. Click vào run tốt nhất
@@ -191,7 +191,7 @@ docker compose up trainer
 
 # 4. Show results
 echo "✅ Training completed!"
-echo "📊 View experiments at: http://localhost:5000"
+echo "📊 View experiments at: http://localhost:6969"
 echo "📦 Models saved in: ./models/"
 ```
 

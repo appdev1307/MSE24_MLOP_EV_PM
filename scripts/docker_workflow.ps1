@@ -60,12 +60,12 @@ if (-not $SkipTraining) {
 
 # Stage 5-6: View Results
 Write-Host "`n📊 Stage 5-6: View Experiments & Metrics" -ForegroundColor Yellow
-Write-Host "Open MLflow UI: http://localhost:5000" -ForegroundColor Cyan
+Write-Host "Open MLflow UI: http://localhost:6969" -ForegroundColor Cyan
 Write-Host "Experiments are logged in: predictive-maintenance" -ForegroundColor White
 
 # Stage 7-8: Register Model
 Write-Host "`n📝 Stage 7-8: Select Best Model & Register" -ForegroundColor Yellow
-Write-Host "1. Go to http://localhost:5000" -ForegroundColor White
+Write-Host "1. Go to http://localhost:6969" -ForegroundColor White
 Write-Host "2. Compare experiments" -ForegroundColor White
 Write-Host "3. Select best model" -ForegroundColor White
 Write-Host "4. Register to Model Registry" -ForegroundColor White
@@ -87,7 +87,7 @@ if (-not $SkipDeploy) {
     Write-Host "✅ Deployment completed!" -ForegroundColor Green
     Write-Host "`n📊 Services:" -ForegroundColor Cyan
     Write-Host "  - API: http://localhost:8000/docs" -ForegroundColor White
-    Write-Host "  - MLflow: http://localhost:5000" -ForegroundColor White
+    Write-Host "  - MLflow: http://localhost:6969" -ForegroundColor White
     Write-Host "  - Prometheus: http://localhost:9090" -ForegroundColor White
     Write-Host "  - Grafana: http://localhost:3000" -ForegroundColor White
 } else {
