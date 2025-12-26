@@ -175,10 +175,51 @@ git push origin main
    - Develop trên local
    - Pull main trên VPS (production)
 
+## 🆘 Vim Swap File Error
+
+### Lỗi: "Found a swap file" khi pull
+
+Khi Git cố mở vim để tạo merge commit, bạn có thể gặp:
+```
+E325: ATTENTION
+Found a swap file by the name ".../.MERGE_MSG.swp"
+```
+
+**Giải pháp nhanh**:
+
+```bash
+# Cách 1: Xóa swap file và pull lại
+rm -f .git/.MERGE_MSG.swp
+git pull origin main --no-edit
+
+# Cách 2: Sử dụng script tự động
+chmod +x scripts/fix_vim_swap.sh
+./scripts/fix_vim_swap.sh
+git pull origin main
+
+# Cách 3: Cấu hình Git để dùng nano thay vì vim
+git config core.editor "nano"
+git pull origin main
+
+# Cách 4: Pull mà không mở editor
+git pull origin main --no-edit
+```
+
+**Cấu hình vĩnh viễn để tránh vấn đề này**:
+
+```bash
+# Set nano làm editor mặc định (dễ dùng hơn vim)
+git config --global core.editor "nano"
+
+# Hoặc skip editor cho merge commits
+git config --global core.mergeoptions "--no-edit"
+```
+
 ## 🆘 Nếu vẫn gặp vấn đề
 
 1. Kiểm tra `.gitignore` đã được cập nhật chưa
 2. Kiểm tra file nào đang gây conflict: `git status`
 3. Backup files quan trọng trước khi reset
 4. Xem logs: `git log --oneline -5`
+5. Nếu gặp vim swap file: Xem phần trên
 

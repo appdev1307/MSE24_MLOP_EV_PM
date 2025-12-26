@@ -11,6 +11,14 @@ echo "🔧 Fixing Git pull configuration..."
 echo "📝 Configuring Git pull strategy..."
 git config pull.rebase false
 
+# Cấu hình Git editor để tránh vim swap file issues
+# Sử dụng nano thay vì vim (dễ dùng hơn trên VPS)
+if ! git config --get core.editor > /dev/null 2>&1; then
+    echo "📝 Configuring Git editor to nano..."
+    git config core.editor "nano"
+    echo "✅ Git editor configured to 'nano'"
+fi
+
 # Hoặc chỉ cho repo này
 # git config --local pull.rebase false
 
@@ -35,10 +43,16 @@ if [ -n "$(git status --porcelain)" ]; then
     fi
 fi
 
-# Pull code
+# Clean up any vim swap files that might cause issues
+echo ""
+echo "🧹 Cleaning up any vim swap files..."
+find .git -name "*.swp" -type f -delete 2>/dev/null || true
+find .git -name ".*.swp" -type f -delete 2>/dev/null || true
+
+# Pull code (sử dụng --no-edit để tránh mở editor)
 echo ""
 echo "🔄 Pulling latest code from origin/main..."
-git pull origin main
+git pull origin main --no-edit 2>/dev/null || git pull origin main
 
 echo ""
 echo "✅ Done! Code updated successfully."

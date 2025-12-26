@@ -303,13 +303,14 @@ docker compose down -v
 ### Update code
 
 ```bash
-# Cấu hình Git pull strategy (chỉ cần làm 1 lần)
+# Cấu hình Git (chỉ cần làm 1 lần)
 git config pull.rebase false
+git config core.editor "nano"  # Tránh vim swap file issues
 
 # Pull code mới
-git pull origin main
+git pull origin main --no-edit
 
-# Hoặc sử dụng script tự động
+# Hoặc sử dụng script tự động (khuyến nghị)
 chmod +x scripts/fix_git_pull.sh
 ./scripts/fix_git_pull.sh
 
@@ -318,7 +319,9 @@ docker compose build
 docker compose up -d
 ```
 
-**Lưu ý**: Nếu gặp lỗi "divergent branches", xem hướng dẫn trong `docs/GIT_PULL_ON_VPS.md`
+**Lưu ý**: 
+- Nếu gặp lỗi "divergent branches", xem hướng dẫn trong `docs/GIT_PULL_ON_VPS.md`
+- Nếu gặp vim swap file error, chạy: `./scripts/fix_vim_swap.sh`
 
 ## 🔍 Troubleshooting
 
