@@ -104,11 +104,14 @@ sudo ufw status
 Sử dụng script deploy tự động:
 
 ```bash
-# Cấp quyền thực thi
+# Cấp quyền thực thi (QUAN TRỌNG!)
 chmod +x scripts/deploy_vps.sh
+chmod +x scripts/download_dataset.sh
 
 # Chạy script deploy
 ./scripts/deploy_vps.sh
+
+# Nếu gặp lỗi "Permission denied", xem phần Troubleshooting bên dưới
 ```
 
 Script sẽ tự động:
@@ -139,6 +142,9 @@ docker compose build alert-service
 
 ```bash
 # Start tất cả services
+# Nếu gặp "permission denied", thử:
+# - Thêm user vào docker group (xem Troubleshooting)
+# - Hoặc dùng: sudo docker compose up -d
 docker compose up -d
 
 # Kiểm tra status
@@ -288,6 +294,91 @@ docker compose up -d
 ```
 
 ## 🔍 Troubleshooting
+
+### Permission Denied - Script không chạy được
+
+**Lỗi**: `bash: ./scripts/deploy_vps.sh: Permission denied`
+
+**Giải pháp**:
+
+```bash
+# Cấp quyền thực thi cho script
+chmod +x scripts/deploy_vps.sh
+chmod +x scripts/download_dataset.sh
+
+# Sau đó chạy lại
+./scripts/deploy_vps.sh
+```
+
+### Permission Denied - Docker commands
+
+**Lỗi**: `permission denied while trying to connect to the Docker daemon socket`
+
+**Giải pháp 1: Thêm user vào docker group (Khuyến nghị)**
+
+```bash
+# Thêm user hiện tại vào docker group
+sudo usermod -aG docker $USER
+
+# Logout và login lại để áp dụng thay đổi
+# Hoặc chạy lệnh sau để áp dụng ngay (không cần logout)
+newgrp docker
+
+# Kiểm tra
+docker ps
+```
+
+**Giải pháp 2: Sử dụng sudo (tạm thời)**
+
+```bash
+# Chạy với sudo
+sudo docker compose up -d
+sudo docker compose ps
+
+# Lưu ý: Có thể gây vấn đề với file permissions
+```
+
+**Giải pháp 3: Fix Docker socket permissions**
+
+```bash
+# Kiểm tra permissions của Docker socket
+ls -l /var/run/docker.sock
+
+# Fix permissions (nếu cần)
+sudo chmod 666 /var/run/docker.sock
+# Hoặc tốt hơn: thêm user vào docker group (giải pháp 1)
+```
+
+### Permission Denied - File/Directory access
+
+**Lỗi**: `Permission denied` khi truy cập files
+
+**Giải pháp**:
+
+```bash
+# Kiểm tra ownership
+ls -la
+
+# Thay đổi ownership nếu cần (thay USERNAME bằng user của bạn)
+sudo chown -R $USER:$USER .
+
+# Hoặc cấp quyền đọc/ghi
+chmod -R 755 .
+```
+
+### Permission Denied - Kaggle credentials
+
+**Lỗi**: `Permission denied` khi download dataset
+
+**Giải pháp**:
+
+```bash
+# Set proper permissions cho kaggle.json
+chmod 600 ~/.kaggle/kaggle.json
+
+# Kiểm tra file tồn tại
+ls -la ~/.kaggle/kaggle.json
+```
 
 ### Service không start
 
