@@ -1,8 +1,13 @@
+# Models và data (generated files - không commit)
 models/
-venv/
 data/
 mlflow/
 mlflow/mlflow.db
+*.parquet
+*.joblib
+*.pkl
+*.h5
+*.ckpt
 
 # Python cache / build
 __pycache__/
@@ -13,11 +18,21 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+*.so
+*.egg
 
 # Virtual env variants
+venv/
 .venv/
 env/
 .env/
+ENV/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
 
 # Tests & coverage
 .pytest_cache/
@@ -25,22 +40,70 @@ env/
 coverage.xml
 htmlcov/
 .tox/
+.coverage.*
 
 # Type checking / lint
 .mypy_cache/
 .ruff_cache/
+.dmypy.json
+dmypy.json
 
 # IDE / editor
 .vscode/
 .idea/
 *.code-workspace
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
 
 # OS / misc
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
 
 # Logs / temp
 logs/
 *.log
+*.log.*
 tmp/
 temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+
+# Docker
+.dockerignore.local
+docker-compose.override.yml
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Node modules (nếu có frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database files (trừ schema files)
+*.db
+*.sqlite
+*.sqlite3
+
+# Large files
+*.zip
+*.tar.gz
+*.rar
+*.7z
