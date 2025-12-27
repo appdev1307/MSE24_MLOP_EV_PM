@@ -146,6 +146,9 @@ Lệnh này sẽ chạy: MinIO, MLflow, Kafka, Zookeeper, Prometheus, Grafana, A
 # Khởi động Training Service
 docker compose up -d training-service
 
+# or
+docker compose up -d trainer
+
 # Mở browser: http://localhost:8080
 # Click "Start Training" để chạy training tự động
 # UI sẽ hiển thị log real-time và status
