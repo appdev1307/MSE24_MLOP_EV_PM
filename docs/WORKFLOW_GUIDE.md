@@ -258,13 +258,13 @@ with mlflow.start_run(run_name="classifier-v1"):
 - `src/anomaly.py` - Train anomaly detection model
 - `src/classifier.py` - Train fault classifier
 - `src/rul.py` - Train RUL predictor
-- `src/train_wrapper.py` - Orchestrate all training
+- `src/train.py` - Orchestrate all training
 
 **Run Training**:
 
 ```bash
 # Local
-python src/train_wrapper.py
+python src/train.py
 
 # Docker
 docker compose up trainer
@@ -579,7 +579,7 @@ python src/preprocessing.py
 
 ```bash
 # Local
-python src/train_wrapper.py
+python src/train.py
 
 # Docker
 docker compose up trainer

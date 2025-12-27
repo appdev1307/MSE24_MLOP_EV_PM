@@ -76,7 +76,7 @@ def step_4_train_models():
     print("="*60)
     
     print("🚂 Training models...")
-    result = subprocess.run(["python", "src/train_wrapper.py"], capture_output=True)
+    result = subprocess.run(["python", "src/train.py"], capture_output=True)
     
     if result.returncode == 0:
         print("✅ Training completed")

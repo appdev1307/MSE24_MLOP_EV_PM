@@ -64,7 +64,7 @@ def register_anomaly_model(
         
         model_uri = f"runs:/{active_run.info.run_id}/anomaly_model"
     
-    # Log additional artifacts (already logged in train_wrapper, but log again for completeness)
+    # Log additional artifacts (already logged in train.py, but log again for completeness)
     if (model_dir / "scaler.joblib").exists():
         mlflow.log_artifact(str(model_dir / "scaler.joblib"), "anomaly_artifacts")
     if (model_dir / "isofeat.joblib").exists():

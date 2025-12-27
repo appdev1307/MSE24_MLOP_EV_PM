@@ -67,7 +67,7 @@ docker compose up -d fastapi-inference
 python src/preprocessing.py
 
 # 3. Train Models
-python src/train_wrapper.py
+python src/train.py
 
 # 4. View Experiments
 # http://localhost:6969 (MLflow phải chạy)

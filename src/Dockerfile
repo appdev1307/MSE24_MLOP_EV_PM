@@ -12,4 +12,4 @@ RUN pip install lightgbm
 
 COPY . .
 
-CMD ["python", "src/train_wrapper.py"]
+CMD ["python", "src/train.py"]

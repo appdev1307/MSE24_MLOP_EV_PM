@@ -193,7 +193,7 @@ Hệ thống này giúp **dự đoán trước khi xe điện bị hỏng**, gi�
 
 #### Bước 5: Lưu Vào MLflow
 
-**File**: `src/train_wrapper.py`
+**File**: `src/train.py`
 
 **Quá trình**:
 
@@ -691,7 +691,7 @@ Grafana Dashboard hiển thị:
    - Train LightGBM RUL model
    - Tính RMSE, MAE, R²
 
-4. **`src/train_wrapper.py`**
+4. **`src/train.py`**
    - Orchestrator - chạy 3 scripts trên
    - Upload lên MLflow
 

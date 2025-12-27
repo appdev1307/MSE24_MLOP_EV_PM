@@ -44,3 +44,9 @@ logs/
 *.log
 tmp/
 temp/
+
+__pycache__/
+*/__pycache__/
+/__pycache__/
+**/__pycache__/
+/**/__pycache__/

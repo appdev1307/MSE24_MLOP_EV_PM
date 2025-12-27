@@ -29,7 +29,7 @@ training_state = {
     "log": []
 }
 
-TRAINER_SCRIPT = os.getenv("TRAINER_SCRIPT", "src/train_wrapper.py")
+TRAINER_SCRIPT = os.getenv("TRAINER_SCRIPT", "src/train.py")
 USE_DOCKER = os.getenv("USE_DOCKER", "true").lower() == "true"
 
 

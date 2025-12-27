@@ -83,7 +83,7 @@ docker compose up -d training-service
 
 ```powershell
 docker compose build trainer         # build image trainer (nếu lần đầu hoặc mới sửa code)
-docker compose run --rm trainer       # chạy train_wrapper, train anomaly + classifier + RUL
+docker compose run --rm trainer       # chạy train.py, train anomaly + classifier + RUL
 ```
 
 **Training Pipeline**:

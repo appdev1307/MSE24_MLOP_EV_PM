@@ -1,0 +1,72 @@
+stages:
+  - setup
+  - train
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+# Setup Python environment
+setup:
+  stage: setup
+  image: python:3.10-slim
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends make gcc g++ libgomp1 && rm -rf /var/lib/apt/lists/*
+    - pip install --upgrade pip
+  script:
+    - echo "🐍 Setting up Python virtual environment..."
+    - make init
+  artifacts:
+    expire_in: 1 hour
+    paths:
+      - .venv/
+    when: on_success
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Training pipeline
+train:
+  stage: train
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  before_script:
+    - apk add --no-cache docker-compose make
+    - docker info
+    - echo "🚀 Starting infrastructure services..."
+    - docker compose up -d minio mlflow
+    - echo "⏳ Waiting for services to be ready..."
+    - sleep 15
+    - echo "🔧 Setting up MinIO bucket..."
+    - docker compose exec -T minio mc alias set local http://localhost:9000 minioadmin minioadmin || true
+    - docker compose exec -T minio mc mb local/mlflow-artifacts || echo "Bucket may already exist"
+  script:
+    - echo "🚂 Running training pipeline..."
+    - make train
+    - echo "✅ Training completed!"
+  after_script:
+    - echo "📊 Training artifacts:"
+    - ls -la models/ || echo "Models directory not found"
+    - docker compose down
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - models/
+      - data/
+    when: always
+  only:
+    - main
+    - develop
+    - schedules
+    - merge_requests
+  tags:
+    - docker
+
+# Manual training job
+train_manual:
+  extends: train
+  when: manual
+  allow_failure: true
+

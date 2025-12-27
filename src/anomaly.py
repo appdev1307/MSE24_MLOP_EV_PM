@@ -1,43 +1,34 @@
-# src/anomaly.py
+"""
+Anomaly Detection Model Training
+Trains an Isolation Forest model to detect anomalies in EV telemetry data.
+"""
 import os
 import random
 from pathlib import Path
+
 import joblib
-import pandas as pd
+import mlflow
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import (
+    confusion_matrix,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
-    confusion_matrix
 )
-import mlflow
+from sklearn.preprocessing import StandardScaler
 
+# Configuration
 SEED = 42
 
-
-def set_seed(seed: int = SEED):
-    random.seed(seed)
-    np.random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-
-
-set_seed()
-
-# Resolve paths relative to repository root for Docker/local consistency
+# Paths
 ROOT = Path(__file__).resolve().parent
-CSV = ROOT / "data" / "EV_Predictive_Maintenance_Dataset_15min.csv"
+CSV_PATH = ROOT / "data" / "EV_Predictive_Maintenance_Dataset_15min.csv"
 OUT_PARQUET = ROOT.parent / "data" / "features_with_anomaly.parquet"
 MODEL_DIR = ROOT.parent / "models" / "anomaly"
-MODEL_DIR.mkdir(parents=True, exist_ok=True)
-OUT_PARQUET.parent.mkdir(parents=True, exist_ok=True)
 
-print("Loading:", CSV)
-df = pd.read_csv(CSV)
-
-# Exact numeric features from your CSV
+# Features for anomaly detection
 FEATURES = [
     "State_of_Charge",
     "Battery_Temperature",
@@ -50,81 +41,109 @@ FEATURES = [
     "Health_Index",
 ]
 
-# Keep only features that exist (defensive)
-FEATURES = [c for c in FEATURES if c in df.columns]
-if not FEATURES:
-    raise RuntimeError("No feature columns found in dataset.")
 
-X = df[FEATURES].fillna(0.0).astype(float)
+def set_seed(seed: int = SEED) -> None:
+    """Set random seed for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
 
-print("Using features:", FEATURES)
 
-# Scale
-scaler = StandardScaler()
-Xs = scaler.fit_transform(X)
+def main():
+    """Main training function."""
+    # Set seed for reproducibility
+    set_seed()
 
-# Train IsolationForest
-iso_params = {
-    "n_estimators": 200,
-    "contamination": 0.02,
-    "random_state": SEED
-}
-iso = IsolationForest(**iso_params)
-iso.fit(Xs)
+    # Create directories
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    OUT_PARQUET.parent.mkdir(parents=True, exist_ok=True)
 
-# Predict: sklearn returns 1 normal, -1 anomaly -> convert to 0/1
-if_pred = iso.predict(Xs)
-df["IF_Anomaly"] = (if_pred == -1).astype(int)
-anomaly_rate = float(df["IF_Anomaly"].mean())
+    # Load data
+    print(f"Loading: {CSV_PATH}")
+    df = pd.read_csv(CSV_PATH)
 
-# Optional evaluation if ground-truth Anomaly label exists
-metrics = {
-    "anomaly_rate": anomaly_rate,
-    "precision": None,
-    "recall": None,
-    "f1": None
-}
-conf_mat = None
-label_col = "Anomaly" if "Anomaly" in df.columns else None
-if label_col:
-    y_true = df[label_col].fillna(0).astype(int)
-    y_pred = df["IF_Anomaly"].astype(int)
-    metrics["precision"] = precision_score(y_true, y_pred, zero_division=0)
-    metrics["recall"] = recall_score(y_true, y_pred, zero_division=0)
-    metrics["f1"] = f1_score(y_true, y_pred, zero_division=0)
-    conf_mat = confusion_matrix(y_true, y_pred)
-    print("Anomaly ground-truth available -> logging metrics")
-    print("Precision:", metrics["precision"])
-    print("Recall:", metrics["recall"])
-    print("F1:", metrics["f1"])
+    # Filter features that exist in dataset
+    available_features = [f for f in FEATURES if f in df.columns]
+    if not available_features:
+        raise RuntimeError("No feature columns found in dataset.")
 
-# Save artifacts
-joblib.dump(iso, os.path.join(MODEL_DIR, "isolation_forest.joblib"))
-joblib.dump(scaler, os.path.join(MODEL_DIR, "scaler.joblib"))
-joblib.dump(FEATURES, os.path.join(MODEL_DIR, "isofeat.joblib"))
-df.to_parquet(OUT_PARQUET, index=False)
+    print(f"Using features: {available_features}")
 
-print("Saved:", OUT_PARQUET)
-print("Models saved to:", MODEL_DIR)
-print("IF anomaly rate:", anomaly_rate)
+    # Prepare features
+    X = df[available_features].fillna(0.0).astype(float)
 
-# MLflow logging (separate run for anomaly training)
-mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:6969"))
-mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
-with mlflow.start_run(run_name="anomaly"):
-    # Set tags for filtering in MLflow UI
-    dataset_name = CSV.stem  # e.g., "EV_Predictive_Maintenance_Dataset_15min"
-    mlflow.set_tag("dataset", dataset_name)
-    mlflow.set_tag("model", "IsolationForest")
-    
-    mlflow.log_params({
-        "model": "IsolationForest",
-        **iso_params,
-        "feature_count": len(FEATURES)
-    })
-    mlflow.log_metrics({k: v for k, v in metrics.items() if v is not None})
-    if conf_mat is not None:
-        cm_path = MODEL_DIR / "confusion_matrix_anomaly.csv"
-        pd.DataFrame(conf_mat, columns=["pred_normal", "pred_anomaly"], index=["true_normal", "true_anomaly"]).to_csv(cm_path)
-        mlflow.log_artifact(cm_path)
+    # Scale features
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    # Train Isolation Forest
+    iso_params = {
+        "n_estimators": 200,
+        "contamination": 0.02,
+        "random_state": SEED,
+    }
+    iso = IsolationForest(**iso_params)
+    iso.fit(X_scaled)
+
+    # Predict anomalies (1 = normal, -1 = anomaly)
+    predictions = iso.predict(X_scaled)
+    df["IF_Anomaly"] = (predictions == -1).astype(int)
+    anomaly_rate = float(df["IF_Anomaly"].mean())
+
+    # Evaluate if ground-truth labels exist
+    metrics = {"anomaly_rate": anomaly_rate}
+    conf_mat = None
+
+    if "Anomaly" in df.columns:
+        y_true = df["Anomaly"].fillna(0).astype(int)
+        y_pred = df["IF_Anomaly"].astype(int)
+        metrics.update({
+            "precision": precision_score(y_true, y_pred, zero_division=0),
+            "recall": recall_score(y_true, y_pred, zero_division=0),
+            "f1": f1_score(y_true, y_pred, zero_division=0),
+        })
+        conf_mat = confusion_matrix(y_true, y_pred)
+        print("Anomaly ground-truth available -> logging metrics")
+        print(f"Precision: {metrics['precision']:.4f}")
+        print(f"Recall: {metrics['recall']:.4f}")
+        print(f"F1: {metrics['f1']:.4f}")
+
+    # Save artifacts
+    joblib.dump(iso, MODEL_DIR / "isolation_forest.joblib")
+    joblib.dump(scaler, MODEL_DIR / "scaler.joblib")
+    joblib.dump(available_features, MODEL_DIR / "isofeat.joblib")
+    df.to_parquet(OUT_PARQUET, index=False)
+
+    print(f"Saved: {OUT_PARQUET}")
+    print(f"Models saved to: {MODEL_DIR}")
+    print(f"IF anomaly rate: {anomaly_rate:.4f}")
+
+    # Log to MLflow
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:6969"))
+    mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
+
+    with mlflow.start_run(run_name="anomaly"):
+        dataset_name = CSV_PATH.stem
+        mlflow.set_tag("dataset", dataset_name)
+        mlflow.set_tag("model", "IsolationForest")
+
+        mlflow.log_params({
+            "model": "IsolationForest",
+            **iso_params,
+            "feature_count": len(available_features),
+        })
+        mlflow.log_metrics(metrics)
+
+        if conf_mat is not None:
+            cm_path = MODEL_DIR / "confusion_matrix_anomaly.csv"
+            pd.DataFrame(
+                conf_mat,
+                columns=["pred_normal", "pred_anomaly"],
+                index=["true_normal", "true_anomaly"],
+            ).to_csv(cm_path)
+            mlflow.log_artifact(cm_path)
+
+
+if __name__ == "__main__":
+    main()
 

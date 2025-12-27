@@ -33,6 +33,26 @@ services:
       - 9001:9001
     volumes:
       - minio-data:/data
+    healthcheck:
+      test: ["CMD", "stat", "/data/.minio.sys"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command: >
+      -c "
+      sleep 5;
+      mc alias set local http://minio:9000 minioadmin minioadmin || exit 1;
+      mc mb local/mlflow-artifacts || true;
+      echo '✅ MinIO bucket mlflow-artifacts ready';
+      "
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.14.1
@@ -52,6 +72,7 @@ services:
       - '6969:6969'
     depends_on:
       - minio
+      - minio-init
     volumes:
       - ./mlflow:/mlflow
 
@@ -74,7 +95,7 @@ services:
       - MODEL_GLOBS=./models/*.joblib
     volumes:
       - ./:/workspace
-    command: ['python', 'src/train_wrapper.py']
+    command: ['python', 'src/train.py']
 
   fastapi-inference:
     build:
@@ -94,7 +115,7 @@ services:
       - AWS_SECRET_ACCESS_KEY=minioadmin
       - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
       - USE_DOCKER=true
-      - TRAINER_SCRIPT=src/train_wrapper.py
+      - TRAINER_SCRIPT=src/train.py
     ports:
       - 8000:8000
     volumes:
