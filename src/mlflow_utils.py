@@ -18,7 +18,7 @@ MODEL_NAMES = {
 
 def get_mlflow_client() -> MlflowClient:
     """Get MLflow client with tracking URI."""
-    tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:6969")
     return MlflowClient(tracking_uri=tracking_uri)
 
 def register_anomaly_model(

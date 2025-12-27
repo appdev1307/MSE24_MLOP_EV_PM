@@ -109,7 +109,7 @@ print("Models saved to:", MODEL_DIR)
 print("IF anomaly rate:", anomaly_rate)
 
 # MLflow logging (separate run for anomaly training)
-mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"))
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:6969"))
 mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance"))
 with mlflow.start_run(run_name="anomaly"):
     # Set tags for filtering in MLflow UI

@@ -22,7 +22,7 @@ from mlflow.tracking import MlflowClient
 from pathlib import Path
 
 # Configuration
-MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:6969")
 EXPERIMENT_NAME = "predictive-maintenance"
 MODEL_NAME = "ev-predictive-maintenance"
 DATASET_PATH = "src/data/EV_Predictive_Maintenance_Dataset_15min.csv"

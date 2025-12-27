@@ -27,7 +27,7 @@ scrape_configs:
   - job_name: mlflow
     static_configs:
       - targets:
-          - mlflow:5000
+          - mlflow:6969
 
 alerting:
   alertmanagers:

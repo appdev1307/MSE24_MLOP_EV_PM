@@ -48,10 +48,10 @@ docker compose build trainer
 docker compose up trainer
 
 # 3. View experiments
-# Mở http://localhost:5000
+# Mở http://localhost:6969
 
 # 4. Register best model (MLflow UI)
-# http://localhost:5000 → Register Model
+# http://localhost:6969 → Register Model
 
 # 5. Deploy production (Docker)
 docker compose up -d fastapi-inference
@@ -70,7 +70,7 @@ python src/preprocessing.py
 python src/train_wrapper.py
 
 # 4. View Experiments
-# http://localhost:5000 (MLflow phải chạy)
+# http://localhost:6969 (MLflow phải chạy)
 
 # 5. Register Best Model
 # Via MLflow UI hoặc script

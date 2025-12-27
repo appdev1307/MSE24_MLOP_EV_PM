@@ -218,7 +218,7 @@ from xgboost import XGBClassifier
 
 # 1. Start MLflow experiment
 mlflow.set_experiment("predictive-maintenance")
-mlflow.set_tracking_uri("http://mlflow:5000")
+mlflow.set_tracking_uri("http://mlflow:6969")
 
 with mlflow.start_run(run_name="classifier-v1"):
     # 2. Train model
@@ -306,7 +306,7 @@ with mlflow.start_run(run_name="lightgbm-v1"):
 **View Experiments**:
 
 ```
-http://localhost:5000
+http://localhost:6969
 ```
 
 **Output**: Multiple experiment runs với different metrics
@@ -348,7 +348,7 @@ print(f"Best run: {best_run.info.run_name}")
 
 **MLflow UI**:
 
-1. Mở http://localhost:5000
+1. Mở http://localhost:6969
 2. Vào experiment "predictive-maintenance"
 3. So sánh metrics của các runs
 4. Xem parameters và artifacts
@@ -588,7 +588,7 @@ docker compose up trainer
 ### 4. View Experiments
 
 ```
-http://localhost:5000
+http://localhost:6969
 ```
 
 ### 5. Register Best Model
