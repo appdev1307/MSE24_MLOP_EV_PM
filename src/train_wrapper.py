@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
         run_scripts_or_fail()
         log_models()
-        
+
         # Register models to Model Registry
         register_models(run.info.run_id, initial_stage=initial_stage)
 

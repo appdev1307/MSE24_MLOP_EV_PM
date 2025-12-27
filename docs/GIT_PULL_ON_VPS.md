@@ -228,6 +228,7 @@ git config --global core.mergeoptions "--no-edit"
 ### Lỗi: "You have not concluded your merge (MERGE_HEAD exists)"
 
 Khi có một merge đang dang dở, bạn sẽ gặp:
+
 ```
 error: You have not concluded your merge (MERGE_HEAD exists).
 hint: Please, commit your changes before merging.
@@ -259,11 +260,13 @@ git pull origin main
 ```
 
 **Các file merge state có thể tồn tại**:
+
 - `.git/MERGE_HEAD` - Merge đang dang dở
 - `.git/CHERRY_PICK_HEAD` - Cherry-pick đang dang dở
 - `.git/REBASE_HEAD` - Rebase đang dang dở
 
 **Xóa tất cả merge states**:
+
 ```bash
 # Xóa tất cả merge states
 rm -f .git/MERGE_HEAD

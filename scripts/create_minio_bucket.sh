@@ -51,3 +51,7 @@ docker compose exec -T minio mc ls $MINIO_ALIAS
 echo ""
 echo "✅ Done!"
 
+
+
+
+
