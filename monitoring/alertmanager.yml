@@ -10,4 +10,4 @@ route:
 receivers:
   - name: 'dev-log'
     webhook_configs:
-      - url: "http://localhost:5000/alert"  # Change to email/webhook if needed
+      - url: "http://localhost:6969/alert"  # Change to email/webhook if needed

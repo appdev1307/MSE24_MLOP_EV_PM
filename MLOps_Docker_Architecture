@@ -1,0 +1,71 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title MLOps Docker Architecture - EV Predictive Maintenance
+
+' =========================
+' Messaging Layer
+' =========================
+package "Messaging Layer" {
+  component Zookeeper
+  component Kafka
+  Zookeeper --> Kafka
+}
+
+' =========================
+' Registry and Storage
+' =========================
+package "Model Registry and Storage" {
+  component MLflow
+  component MinIO
+  MLflow --> MinIO : store artifacts
+}
+
+' =========================
+' Training Plane
+' =========================
+package "Training Plane" {
+  component Trainer
+}
+
+' =========================
+' Serving Plane
+' =========================
+package "Serving Plane" {
+  component FastAPI
+}
+
+' =========================
+' Monitoring and Drift
+' =========================
+package "Monitoring and Drift Detection" {
+  component AlertService
+  component Prometheus
+  component Alertmanager
+  component Grafana
+  component DriftDetection
+}
+
+' =========================
+' Flows
+' =========================
+
+Trainer --> MLflow : log metrics and models
+Trainer --> Kafka : training events
+
+FastAPI --> MLflow : load model
+FastAPI --> Kafka : publish predictions
+
+Kafka --> AlertService : prediction stream
+AlertService --> Prometheus : expose metrics
+
+Prometheus --> Grafana : dashboards
+Prometheus --> Alertmanager : alerts
+
+Prometheus --> DriftDetection : drift metrics
+DriftDetection --> Trainer : trigger retraining
+
+@enduml

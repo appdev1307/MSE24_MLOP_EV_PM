@@ -12,7 +12,7 @@ from mlflow_utils import (
 # ==============================
 # CONFIG
 # ==============================
-MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:6969")
 EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT", "predictive-maintenance")
 
 SCRIPTS = [
